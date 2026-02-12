@@ -5,6 +5,8 @@ const restartButtonEl = document.getElementById('restartButton');
 const roundCountEl = document.getElementById('roundCount');
 const playerHpEl = document.getElementById('playerHp');
 const bossHpEl = document.getElementById('bossHp');
+const playerCardEl = document.getElementById('playerCard');
+const bossCardEl = document.getElementById('bossCard');
 
 const FACE_MAP = {
   1: [5],
@@ -52,6 +54,22 @@ function updateHpBoard() {
   bossHpEl.textContent = bossHp;
 }
 
+function triggerImpact(targetEl, damage) {
+  const intensity = Math.min(1, damage / 6);
+  targetEl.style.setProperty('--impact-scale', (1 + intensity * 0.16).toFixed(2));
+  targetEl.style.setProperty('--impact-glow', (0.35 + intensity * 0.55).toFixed(2));
+
+  targetEl.classList.remove('impact');
+  void targetEl.offsetWidth;
+  targetEl.classList.add('impact');
+}
+
+function triggerDicePower() {
+  diceEl.classList.remove('power-burst');
+  void diceEl.offsetWidth;
+  diceEl.classList.add('power-burst');
+}
+
 function resetGame() {
   roundCount = 0;
   playerHp = MAX_HP;
@@ -62,6 +80,10 @@ function resetGame() {
   updateHpBoard();
   resultEl.textContent = '点击“发起攻击”开始战斗！';
   rollButtonEl.disabled = false;
+
+  playerCardEl.classList.remove('impact');
+  bossCardEl.classList.remove('impact');
+  diceEl.classList.remove('power-burst');
 
   renderDiceFace(1);
 }
@@ -80,6 +102,7 @@ function animateDiceRoll() {
 
         const finalValue = Math.floor(Math.random() * 6) + 1;
         renderDiceFace(finalValue);
+        triggerDicePower();
 
         diceEl.classList.remove('rolling');
         requestAnimationFrame(() => {
@@ -101,6 +124,7 @@ async function playRound() {
 
   const playerDamage = await animateDiceRoll();
   bossHp = Math.max(0, bossHp - playerDamage);
+  triggerImpact(bossCardEl, playerDamage);
 
   if (bossHp === 0) {
     roundCount += 1;
@@ -113,6 +137,7 @@ async function playRound() {
 
   const bossDamage = await animateDiceRoll();
   playerHp = Math.max(0, playerHp - bossDamage);
+  triggerImpact(playerCardEl, bossDamage);
 
   roundCount += 1;
   roundCountEl.textContent = roundCount;
