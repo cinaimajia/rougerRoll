@@ -1,8 +1,10 @@
 const diceEl = document.getElementById('dice');
 const resultEl = document.getElementById('result');
 const rollButtonEl = document.getElementById('rollButton');
-const rollCountEl = document.getElementById('rollCount');
-const bestRollEl = document.getElementById('bestRoll');
+const restartButtonEl = document.getElementById('restartButton');
+const roundCountEl = document.getElementById('roundCount');
+const playerHpEl = document.getElementById('playerHp');
+const bossHpEl = document.getElementById('bossHp');
 
 const FACE_MAP = {
   1: [5],
@@ -13,8 +15,12 @@ const FACE_MAP = {
   6: [1, 3, 4, 6, 7, 9],
 };
 
-let rollCount = 0;
-let bestRoll = 0;
+const MAX_HP = 20;
+
+let roundCount = 0;
+let playerHp = MAX_HP;
+let bossHp = MAX_HP;
+let gameOver = false;
 
 function setupDice() {
   const fragment = document.createDocumentFragment();
@@ -39,41 +45,91 @@ function renderDiceFace(value) {
   });
 
   diceEl.setAttribute('aria-label', `当前点数 ${value}`);
-  resultEl.textContent = `当前点数：${value}`;
 }
 
-function rollDice() {
-  rollButtonEl.disabled = true;
-  diceEl.classList.remove('rolling');
+function updateHpBoard() {
+  playerHpEl.textContent = playerHp;
+  bossHpEl.textContent = bossHp;
+}
 
+function resetGame() {
+  roundCount = 0;
+  playerHp = MAX_HP;
+  bossHp = MAX_HP;
+  gameOver = false;
+
+  roundCountEl.textContent = roundCount;
+  updateHpBoard();
+  resultEl.textContent = '点击“发起攻击”开始战斗！';
+  rollButtonEl.disabled = false;
+
+  renderDiceFace(1);
+}
+
+function animateDiceRoll() {
   let ticks = 0;
-  const previewTimer = setInterval(() => {
-    const previewValue = Math.floor(Math.random() * 6) + 1;
-    renderDiceFace(previewValue);
-    ticks += 1;
 
-    if (ticks >= 8) {
-      clearInterval(previewTimer);
+  return new Promise((resolve) => {
+    const previewTimer = setInterval(() => {
+      const previewValue = Math.floor(Math.random() * 6) + 1;
+      renderDiceFace(previewValue);
+      ticks += 1;
 
-      const finalValue = Math.floor(Math.random() * 6) + 1;
-      rollCount += 1;
-      bestRoll = Math.max(bestRoll, finalValue);
+      if (ticks >= 8) {
+        clearInterval(previewTimer);
 
-      renderDiceFace(finalValue);
-      rollCountEl.textContent = rollCount;
-      bestRollEl.textContent = bestRoll;
+        const finalValue = Math.floor(Math.random() * 6) + 1;
+        renderDiceFace(finalValue);
 
-      requestAnimationFrame(() => {
-        diceEl.classList.add('rolling');
-      });
+        diceEl.classList.remove('rolling');
+        requestAnimationFrame(() => {
+          diceEl.classList.add('rolling');
+        });
 
-      setTimeout(() => {
-        rollButtonEl.disabled = false;
-      }, 700);
-    }
-  }, 70);
+        resolve(finalValue);
+      }
+    }, 70);
+  });
+}
+
+async function playRound() {
+  if (gameOver) {
+    return;
+  }
+
+  rollButtonEl.disabled = true;
+
+  const playerDamage = await animateDiceRoll();
+  bossHp = Math.max(0, bossHp - playerDamage);
+
+  if (bossHp === 0) {
+    roundCount += 1;
+    roundCountEl.textContent = roundCount;
+    updateHpBoard();
+    resultEl.textContent = `你掷出 ${playerDamage} 点伤害，直接击败了 Boss，胜利！`;
+    gameOver = true;
+    return;
+  }
+
+  const bossDamage = await animateDiceRoll();
+  playerHp = Math.max(0, playerHp - bossDamage);
+
+  roundCount += 1;
+  roundCountEl.textContent = roundCount;
+  updateHpBoard();
+
+  if (playerHp === 0) {
+    resultEl.textContent = `你造成 ${playerDamage} 点伤害，Boss 反击 ${bossDamage} 点，你被击败了！`;
+    gameOver = true;
+    return;
+  }
+
+  resultEl.textContent = `你造成 ${playerDamage} 点伤害，Boss 造成 ${bossDamage} 点伤害。`;
+  rollButtonEl.disabled = false;
 }
 
 setupDice();
-renderDiceFace(1);
-rollButtonEl.addEventListener('click', rollDice);
+resetGame();
+
+rollButtonEl.addEventListener('click', playRound);
+restartButtonEl.addEventListener('click', resetGame);

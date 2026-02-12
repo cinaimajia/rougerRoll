@@ -3,23 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>投掷色子游戏</title>
+  <title>掷骰子打 Boss</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="game-container">
-    <h1>🎲 投掷色子</h1>
-    <p class="subtitle">点击按钮，看看你的运气！</p>
+    <h1>⚔️ 掷骰子打 Boss</h1>
+    <p class="subtitle">你和 Boss 初始生命值都为 20，每回合双方各掷一次骰子决定伤害。</p>
+
+    <section class="hp-board" aria-label="生命值状态">
+      <article class="hp-card player">
+        <h2>玩家</h2>
+        <p class="hp-value"><span id="playerHp">20</span> / 20</p>
+      </article>
+      <article class="hp-card boss">
+        <h2>Boss</h2>
+        <p class="hp-value"><span id="bossHp">20</span> / 20</p>
+      </article>
+    </section>
 
     <section class="dice-area" aria-live="polite">
-      <div id="dice" class="dice" role="img" aria-label="当前点数 1">1</div>
-      <p id="result" class="result">当前点数：1</p>
+      <div id="dice" class="dice" role="img" aria-label="当前点数 1"></div>
+      <p id="result" class="result">点击“发起攻击”开始战斗！</p>
     </section>
 
     <section class="controls">
-      <button id="rollButton" class="roll-button" type="button">投掷</button>
-      <p class="stats">总投掷次数：<span id="rollCount">0</span></p>
-      <p class="stats">最高点数：<span id="bestRoll">0</span></p>
+      <button id="rollButton" class="roll-button" type="button">发起攻击</button>
+      <button id="restartButton" class="secondary-button" type="button">重新开始</button>
+      <p class="stats">回合数：<span id="roundCount">0</span></p>
     </section>
   </main>
 
