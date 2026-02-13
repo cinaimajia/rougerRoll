@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title desc">
+  <title id="title">暗影巨龙</title>
+  <desc id="desc">像口袋妖怪风格的Boss角色原画</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#991b1b"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+    <radialGradient id="mist" cx="0.5" cy="0.7" r="0.7">
+      <stop offset="0" stop-color="#a78bfa" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#0f172a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="240" height="240" rx="22" fill="url(#bg)"/>
+  <path d="M40 158c16-33 41-48 80-48s64 15 80 48v47H40z" fill="#1e1b4b"/>
+  <path d="M120 52l20 20h-12l20 22h-19l15 20h-49l15-20H91l20-22H99z" fill="#0f172a"/>
+  <circle cx="95" cy="105" r="8" fill="#fef2f2"/>
+  <circle cx="145" cy="105" r="8" fill="#fef2f2"/>
+  <circle cx="95" cy="105" r="4" fill="#dc2626"/>
+  <circle cx="145" cy="105" r="4" fill="#dc2626"/>
+  <path d="M101 132c8 9 30 9 38 0" fill="none" stroke="#fca5a5" stroke-width="4" stroke-linecap="round"/>
+  <path d="M62 68l-18 8 12 7-11 10 18-3 7 17 7-17 18 3-11-10 12-7z" fill="#c4b5fd"/>
+  <path d="M178 68l-18 8 12 7-11 10 18-3 7 17 7-17 18 3-11-10 12-7z" fill="#c4b5fd"/>
+  <circle cx="120" cy="140" r="95" fill="url(#mist)"/>
+</svg>
