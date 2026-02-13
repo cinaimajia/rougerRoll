@@ -8,24 +8,36 @@
 </head>
 <body>
   <main class="game-container">
-    <h1>⚔️ 掷骰子打 Boss</h1>
-    <p class="subtitle">你和 Boss 初始生命值都为 20，每回合双方各掷一次骰子决定伤害。</p>
+    <header class="game-header">
+      <h1>⚔️ 掷骰子打 Boss</h1>
+      <p class="subtitle">宝可梦对战风布局：玩家在左下角，Boss 在右上角，双方都将投掷骰子决定伤害。</p>
+    </header>
 
-    <section class="hp-board" aria-label="生命值状态">
-      <article class="hp-card player" id="playerCard">
-        <img src="assets/player-art.svg" class="character-art" alt="玩家原画：雷属性训练家" />
-        <h2>玩家</h2>
-        <p class="hp-value"><span id="playerHp">20</span> / 20</p>
-      </article>
-      <article class="hp-card boss" id="bossCard">
+    <section class="battle-stage" aria-label="战斗舞台">
+      <article class="fighter boss" id="bossCard">
         <img src="assets/boss-art.svg" class="character-art" alt="Boss 原画：暗影巨龙" />
-        <h2>Boss</h2>
-        <p class="hp-value"><span id="bossHp">20</span> / 20</p>
+        <div class="fighter-meta">
+          <h2>Boss</h2>
+          <p class="hp-value"><span id="bossHp">20</span> / 20</p>
+        </div>
+        <div class="dice-panel boss-dice-panel" aria-live="polite">
+          <p class="dice-title">Boss 骰子</p>
+          <div id="bossDice" class="dice boss-dice" role="img" aria-label="Boss 当前点数 1"></div>
+        </div>
       </article>
-    </section>
 
-    <section class="dice-area" aria-live="polite">
-      <div id="dice" class="dice" role="img" aria-label="当前点数 1"></div>
+      <article class="fighter player" id="playerCard">
+        <img src="assets/player-art.svg" class="character-art" alt="玩家原画：雷属性训练家" />
+        <div class="fighter-meta">
+          <h2>玩家</h2>
+          <p class="hp-value"><span id="playerHp">20</span> / 20</p>
+        </div>
+        <div class="dice-panel player-dice-panel" aria-live="polite">
+          <p class="dice-title">玩家骰子</p>
+          <div id="playerDice" class="dice player-dice" role="img" aria-label="玩家当前点数 1"></div>
+        </div>
+      </article>
+
       <p id="result" class="result">点击“发起攻击”开始战斗！</p>
     </section>
 
