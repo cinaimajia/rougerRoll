@@ -10,6 +10,7 @@ const playerDiceEl = document.getElementById('playerDice');
 const bossDiceEl = document.getElementById('bossDice');
 const playerRollValueEl = document.getElementById('playerRollValue');
 const bossRollValueEl = document.getElementById('bossRollValue');
+const turnToastEl = document.getElementById('turnToast');
 
 const FACE_MAP = {
   1: [5],
@@ -99,8 +100,15 @@ function resetGame() {
 
   playerCardEl.classList.remove('impact');
   bossCardEl.classList.remove('impact');
+  playerCardEl.classList.remove('show-damage');
+  bossCardEl.classList.remove('show-damage');
   playerDiceEl.classList.remove('power-burst');
   bossDiceEl.classList.remove('power-burst');
+  playerDiceEl.classList.remove('turn-focus');
+  bossDiceEl.classList.remove('turn-focus');
+  playerCardEl.dataset.damage = '';
+  bossCardEl.dataset.damage = '';
+  hideTurnToast();
 
   renderDiceFace(playerDiceEl, 1, '玩家');
   renderDiceFace(bossDiceEl, 1, 'Boss ');
@@ -112,6 +120,27 @@ function wait(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function showTurnToast(text) {
+  turnToastEl.textContent = text;
+  turnToastEl.classList.add('show');
+}
+
+function hideTurnToast() {
+  turnToastEl.classList.remove('show');
+}
+
+function setTurnFocus(owner) {
+  playerDiceEl.classList.toggle('turn-focus', owner === 'player');
+  bossDiceEl.classList.toggle('turn-focus', owner === 'boss');
+}
+
+function showDamageFloat(targetEl, damage) {
+  targetEl.dataset.damage = `-${damage}`;
+  targetEl.classList.remove('show-damage');
+  void targetEl.offsetWidth;
+  targetEl.classList.add('show-damage');
 }
 
 function animateDiceRoll(diceEl, ownerLabel, maxRoll, owner) {
@@ -153,10 +182,20 @@ async function playRound() {
   }
 
   rollButtonEl.disabled = true;
+
+  showTurnToast('轮到玩家了');
+  setTurnFocus('player');
+  await wait(560);
+  hideTurnToast();
+  await wait(180);
+
   const playerDamage = await animateDiceRoll(playerDiceEl, '玩家', 6, 'player');
   bossHp = Math.max(0, bossHp - playerDamage);
   triggerImpact(bossCardEl);
+  showDamageFloat(bossCardEl, playerDamage);
   updateHpBoard();
+  setTurnFocus(null);
+  await wait(680);
 
   if (bossHp === 0) {
     roundCount += 1;
@@ -168,13 +207,21 @@ async function playRound() {
 
   activeTurn = 'boss';
   updateActionButton();
-  resultEl.textContent = `玩家回合：你造成 ${playerDamage} 点伤害。Boss 回合开始...`;
-  await wait(600);
+  resultEl.textContent = `玩家回合：你造成 ${playerDamage} 点伤害。`;
+
+  showTurnToast('轮到 Boss 行动');
+  setTurnFocus('boss');
+  await wait(560);
+  hideTurnToast();
+  await wait(180);
 
   const bossDamage = await animateDiceRoll(bossDiceEl, 'Boss ', 10, 'boss');
   playerHp = Math.max(0, playerHp - bossDamage);
   triggerImpact(playerCardEl);
+  showDamageFloat(playerCardEl, bossDamage);
   updateHpBoard();
+  setTurnFocus(null);
+  await wait(680);
 
   roundCount += 1;
   roundCountEl.textContent = roundCount;
