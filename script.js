@@ -8,6 +8,8 @@ const playerCardEl = document.getElementById('playerCard');
 const bossCardEl = document.getElementById('bossCard');
 const playerDiceEl = document.getElementById('playerDice');
 const bossDiceEl = document.getElementById('bossDice');
+const playerRollValueEl = document.getElementById('playerRollValue');
+const bossRollValueEl = document.getElementById('bossRollValue');
 
 const FACE_MAP = {
   1: [5],
@@ -24,6 +26,7 @@ let roundCount = 0;
 let playerHp = MAX_HP;
 let bossHp = MAX_HP;
 let gameOver = false;
+let activeTurn = 'player';
 
 function setupDice(diceEl) {
   const fragment = document.createDocumentFragment();
@@ -40,7 +43,8 @@ function setupDice(diceEl) {
 }
 
 function renderDiceFace(diceEl, value, ownerLabel) {
-  const activeSlots = FACE_MAP[value] ?? [];
+  const pipValue = Math.min(value, 6);
+  const activeSlots = FACE_MAP[pipValue] ?? [];
 
   diceEl.querySelectorAll('.pip').forEach((pipEl) => {
     const slot = Number(pipEl.dataset.slot);
@@ -48,6 +52,19 @@ function renderDiceFace(diceEl, value, ownerLabel) {
   });
 
   diceEl.setAttribute('aria-label', `${ownerLabel}当前点数 ${value}`);
+}
+
+function updateRollValue(owner, value) {
+  if (owner === 'player') {
+    playerRollValueEl.textContent = value;
+    return;
+  }
+
+  bossRollValueEl.textContent = value;
+}
+
+function updateActionButton() {
+  rollButtonEl.textContent = activeTurn === 'player' ? '玩家行动' : 'Boss 行动';
 }
 
 function updateHpBoard() {
@@ -72,11 +89,13 @@ function resetGame() {
   playerHp = MAX_HP;
   bossHp = MAX_HP;
   gameOver = false;
+  activeTurn = 'player';
 
   roundCountEl.textContent = roundCount;
   updateHpBoard();
-  resultEl.textContent = '点击“发起攻击”开始战斗！';
+  resultEl.textContent = '点击“玩家行动”开始战斗！';
   rollButtonEl.disabled = false;
+  updateActionButton();
 
   playerCardEl.classList.remove('impact');
   bossCardEl.classList.remove('impact');
@@ -85,22 +104,26 @@ function resetGame() {
 
   renderDiceFace(playerDiceEl, 1, '玩家');
   renderDiceFace(bossDiceEl, 1, 'Boss ');
+  updateRollValue('player', 1);
+  updateRollValue('boss', 1);
 }
 
-function animateDiceRoll(diceEl, ownerLabel) {
+function animateDiceRoll(diceEl, ownerLabel, maxRoll, owner) {
   let ticks = 0;
 
   return new Promise((resolve) => {
     const previewTimer = setInterval(() => {
-      const previewValue = Math.floor(Math.random() * 6) + 1;
+      const previewValue = Math.floor(Math.random() * maxRoll) + 1;
       renderDiceFace(diceEl, previewValue, ownerLabel);
+      updateRollValue(owner, previewValue);
       ticks += 1;
 
       if (ticks >= 8) {
         clearInterval(previewTimer);
 
-        const finalValue = Math.floor(Math.random() * 6) + 1;
+        const finalValue = Math.floor(Math.random() * maxRoll) + 1;
         renderDiceFace(diceEl, finalValue, ownerLabel);
+        updateRollValue(owner, finalValue);
         triggerDicePower(diceEl);
 
         diceEl.classList.remove('rolling');
@@ -121,34 +144,44 @@ async function playRound() {
 
   rollButtonEl.disabled = true;
 
-  const playerDamage = await animateDiceRoll(playerDiceEl, '玩家');
-  bossHp = Math.max(0, bossHp - playerDamage);
-  triggerImpact(bossCardEl);
-
-  if (bossHp === 0) {
-    roundCount += 1;
-    roundCountEl.textContent = roundCount;
+  if (activeTurn === 'player') {
+    const playerDamage = await animateDiceRoll(playerDiceEl, '玩家', 6, 'player');
+    bossHp = Math.max(0, bossHp - playerDamage);
+    triggerImpact(bossCardEl);
     updateHpBoard();
-    resultEl.textContent = `你掷出 ${playerDamage} 点伤害，直接击败了 Boss，胜利！`;
-    gameOver = true;
+
+    if (bossHp === 0) {
+      roundCount += 1;
+      roundCountEl.textContent = roundCount;
+      resultEl.textContent = `玩家回合：你掷出 ${playerDamage} 点伤害，直接击败了 Boss，胜利！`;
+      gameOver = true;
+      return;
+    }
+
+    activeTurn = 'boss';
+    updateActionButton();
+    resultEl.textContent = `玩家回合：你造成 ${playerDamage} 点伤害。点击“Boss 行动”继续。`;
+    rollButtonEl.disabled = false;
     return;
   }
 
-  const bossDamage = await animateDiceRoll(bossDiceEl, 'Boss ');
+  const bossDamage = await animateDiceRoll(bossDiceEl, 'Boss ', 10, 'boss');
   playerHp = Math.max(0, playerHp - bossDamage);
   triggerImpact(playerCardEl);
+  updateHpBoard();
 
   roundCount += 1;
   roundCountEl.textContent = roundCount;
-  updateHpBoard();
 
   if (playerHp === 0) {
-    resultEl.textContent = `你造成 ${playerDamage} 点伤害，Boss 反击 ${bossDamage} 点，你被击败了！`;
+    resultEl.textContent = `Boss 回合：Boss 用 D10 造成 ${bossDamage} 点伤害，你被击败了！`;
     gameOver = true;
     return;
   }
 
-  resultEl.textContent = `你造成 ${playerDamage} 点伤害，Boss 造成 ${bossDamage} 点伤害。`;
+  activeTurn = 'player';
+  updateActionButton();
+  resultEl.textContent = `Boss 回合：Boss 用 D10 造成 ${bossDamage} 点伤害。轮到你行动。`;
   rollButtonEl.disabled = false;
 }
 
