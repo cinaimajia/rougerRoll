@@ -120,6 +120,12 @@ h1 {
   font-size: 0.9rem;
 }
 
+.dice-value {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+}
+
 .dice {
   width: 88px;
   height: 88px;
