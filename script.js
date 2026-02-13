@@ -1,4 +1,3 @@
-const diceEl = document.getElementById('dice');
 const resultEl = document.getElementById('result');
 const rollButtonEl = document.getElementById('rollButton');
 const restartButtonEl = document.getElementById('restartButton');
@@ -7,6 +6,8 @@ const playerHpEl = document.getElementById('playerHp');
 const bossHpEl = document.getElementById('bossHp');
 const playerCardEl = document.getElementById('playerCard');
 const bossCardEl = document.getElementById('bossCard');
+const playerDiceEl = document.getElementById('playerDice');
+const bossDiceEl = document.getElementById('bossDice');
 
 const FACE_MAP = {
   1: [5],
@@ -24,7 +25,7 @@ let playerHp = MAX_HP;
 let bossHp = MAX_HP;
 let gameOver = false;
 
-function setupDice() {
+function setupDice(diceEl) {
   const fragment = document.createDocumentFragment();
 
   for (let i = 1; i <= 9; i += 1) {
@@ -38,7 +39,7 @@ function setupDice() {
   diceEl.appendChild(fragment);
 }
 
-function renderDiceFace(value) {
+function renderDiceFace(diceEl, value, ownerLabel) {
   const activeSlots = FACE_MAP[value] ?? [];
 
   diceEl.querySelectorAll('.pip').forEach((pipEl) => {
@@ -46,7 +47,7 @@ function renderDiceFace(value) {
     pipEl.classList.toggle('show', activeSlots.includes(slot));
   });
 
-  diceEl.setAttribute('aria-label', `当前点数 ${value}`);
+  diceEl.setAttribute('aria-label', `${ownerLabel}当前点数 ${value}`);
 }
 
 function updateHpBoard() {
@@ -54,17 +55,13 @@ function updateHpBoard() {
   bossHpEl.textContent = bossHp;
 }
 
-function triggerImpact(targetEl, damage) {
-  const intensity = Math.min(1, damage / 6);
-  targetEl.style.setProperty('--impact-scale', (1 + intensity * 0.16).toFixed(2));
-  targetEl.style.setProperty('--impact-glow', (0.35 + intensity * 0.55).toFixed(2));
-
+function triggerImpact(targetEl) {
   targetEl.classList.remove('impact');
   void targetEl.offsetWidth;
   targetEl.classList.add('impact');
 }
 
-function triggerDicePower() {
+function triggerDicePower(diceEl) {
   diceEl.classList.remove('power-burst');
   void diceEl.offsetWidth;
   diceEl.classList.add('power-burst');
@@ -83,26 +80,28 @@ function resetGame() {
 
   playerCardEl.classList.remove('impact');
   bossCardEl.classList.remove('impact');
-  diceEl.classList.remove('power-burst');
+  playerDiceEl.classList.remove('power-burst');
+  bossDiceEl.classList.remove('power-burst');
 
-  renderDiceFace(1);
+  renderDiceFace(playerDiceEl, 1, '玩家');
+  renderDiceFace(bossDiceEl, 1, 'Boss ');
 }
 
-function animateDiceRoll() {
+function animateDiceRoll(diceEl, ownerLabel) {
   let ticks = 0;
 
   return new Promise((resolve) => {
     const previewTimer = setInterval(() => {
       const previewValue = Math.floor(Math.random() * 6) + 1;
-      renderDiceFace(previewValue);
+      renderDiceFace(diceEl, previewValue, ownerLabel);
       ticks += 1;
 
       if (ticks >= 8) {
         clearInterval(previewTimer);
 
         const finalValue = Math.floor(Math.random() * 6) + 1;
-        renderDiceFace(finalValue);
-        triggerDicePower();
+        renderDiceFace(diceEl, finalValue, ownerLabel);
+        triggerDicePower(diceEl);
 
         diceEl.classList.remove('rolling');
         requestAnimationFrame(() => {
@@ -122,9 +121,9 @@ async function playRound() {
 
   rollButtonEl.disabled = true;
 
-  const playerDamage = await animateDiceRoll();
+  const playerDamage = await animateDiceRoll(playerDiceEl, '玩家');
   bossHp = Math.max(0, bossHp - playerDamage);
-  triggerImpact(bossCardEl, playerDamage);
+  triggerImpact(bossCardEl);
 
   if (bossHp === 0) {
     roundCount += 1;
@@ -135,9 +134,9 @@ async function playRound() {
     return;
   }
 
-  const bossDamage = await animateDiceRoll();
+  const bossDamage = await animateDiceRoll(bossDiceEl, 'Boss ');
   playerHp = Math.max(0, playerHp - bossDamage);
-  triggerImpact(playerCardEl, bossDamage);
+  triggerImpact(playerCardEl);
 
   roundCount += 1;
   roundCountEl.textContent = roundCount;
@@ -153,7 +152,8 @@ async function playRound() {
   rollButtonEl.disabled = false;
 }
 
-setupDice();
+setupDice(playerDiceEl);
+setupDice(bossDiceEl);
 resetGame();
 
 rollButtonEl.addEventListener('click', playRound);
