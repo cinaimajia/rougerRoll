@@ -392,10 +392,16 @@ h1 {
   }
 
   .fighter.boss {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
     top: 0.6rem;
   }
 
   .fighter.player {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
     bottom: 0.6rem;
   }
 
