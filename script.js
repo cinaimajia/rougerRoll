@@ -44,13 +44,16 @@ function setupDice(diceEl) {
 }
 
 function renderDiceFace(diceEl, value, ownerLabel) {
-  const pipValue = Math.min(value, 6);
-  const activeSlots = FACE_MAP[pipValue] ?? [];
+  const shouldUseNumberFace = value > 6;
+  const activeSlots = shouldUseNumberFace ? [] : (FACE_MAP[value] ?? []);
 
   diceEl.querySelectorAll('.pip').forEach((pipEl) => {
     const slot = Number(pipEl.dataset.slot);
     pipEl.classList.toggle('show', activeSlots.includes(slot));
   });
+
+  diceEl.dataset.faceValue = shouldUseNumberFace ? String(value) : '';
+  diceEl.classList.toggle('number-face', shouldUseNumberFace);
 
   diceEl.setAttribute('aria-label', `${ownerLabel}当前点数 ${value}`);
 }
