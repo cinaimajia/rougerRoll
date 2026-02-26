@@ -14,6 +14,9 @@ const bossRollValueEl = document.getElementById('bossRollValue');
 const bossDiceMaxEl = document.getElementById('bossDiceMax');
 const turnToastEl = document.getElementById('turnToast');
 const skillPanelEl = document.getElementById('skillPanel');
+const helpButtonEl = document.getElementById('helpButton');
+const rulesDialogEl = document.getElementById('rulesDialog');
+const closeRulesButtonEl = document.getElementById('closeRulesButton');
 
 const FACE_MAP = {
   1: [5],
@@ -438,3 +441,25 @@ resetGame();
 
 rollButtonEl.addEventListener('click', playRound);
 restartButtonEl.addEventListener('click', resetGame);
+
+helpButtonEl.addEventListener('click', () => {
+  rulesDialogEl.showModal();
+});
+
+closeRulesButtonEl.addEventListener('click', () => {
+  rulesDialogEl.close();
+});
+
+rulesDialogEl.addEventListener('click', (event) => {
+  const bounds = rulesDialogEl.getBoundingClientRect();
+  const isBackdropClick = (
+    event.clientX < bounds.left
+    || event.clientX > bounds.right
+    || event.clientY < bounds.top
+    || event.clientY > bounds.bottom
+  );
+
+  if (isBackdropClick) {
+    rulesDialogEl.close();
+  }
+});
