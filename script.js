@@ -4,12 +4,14 @@ const restartButtonEl = document.getElementById('restartButton');
 const roundCountEl = document.getElementById('roundCount');
 const playerHpEl = document.getElementById('playerHp');
 const bossHpEl = document.getElementById('bossHp');
+const bossMaxHpEl = document.getElementById('bossMaxHp');
 const playerCardEl = document.getElementById('playerCard');
 const bossCardEl = document.getElementById('bossCard');
 const playerDiceEl = document.getElementById('playerDice');
 const bossDiceEl = document.getElementById('bossDice');
 const playerRollValueEl = document.getElementById('playerRollValue');
 const bossRollValueEl = document.getElementById('bossRollValue');
+const bossDiceMaxEl = document.getElementById('bossDiceMax');
 const turnToastEl = document.getElementById('turnToast');
 const skillPanelEl = document.getElementById('skillPanel');
 
@@ -62,6 +64,8 @@ const SKILL_CONFIG = {
 let roundCount = 0;
 let playerHp = MAX_HP;
 let bossHp = MAX_HP;
+let bossMaxHp = MAX_HP;
+let bossAttackMax = 10;
 let gameOver = false;
 let activeTurn = 'player';
 let selectedSkillKey = null;
@@ -124,6 +128,11 @@ function updateActionButton() {
 function updateHpBoard() {
   playerHpEl.textContent = playerHp;
   bossHpEl.textContent = bossHp;
+  bossMaxHpEl.textContent = bossMaxHp;
+}
+
+function updateBossPowerBoard() {
+  bossDiceMaxEl.textContent = `D${bossAttackMax}`;
 }
 
 function triggerImpact(targetEl) {
@@ -208,6 +217,8 @@ function resetGame() {
   roundCount = 0;
   playerHp = MAX_HP;
   bossHp = MAX_HP;
+  bossMaxHp = MAX_HP;
+  bossAttackMax = 10;
   gameOver = false;
   activeTurn = 'player';
   selectedSkillKey = null;
@@ -215,6 +226,7 @@ function resetGame() {
 
   roundCountEl.textContent = roundCount;
   updateHpBoard();
+  updateBossPowerBoard();
   resultEl.textContent = '点击“玩家行动”开始战斗！';
   rollButtonEl.disabled = false;
   updateActionButton();
@@ -354,10 +366,18 @@ async function playRound() {
   if (bossHp === 0) {
     roundCount += 1;
     roundCountEl.textContent = roundCount;
-    const extraLog = skillLog.length ? `（${skillLog.join('；')}）` : '';
-    resultEl.textContent = `玩家回合：你掷出 ${playerRoll} 点，最终造成 ${playerDamage} 点伤害并击败 Boss！${extraLog}`;
-    gameOver = true;
+    bossAttackMax += 1;
+    bossMaxHp += 10;
+    bossHp = bossMaxHp;
+    tickSkillCooldowns();
+    updateHpBoard();
+    updateBossPowerBoard();
+
+    const extraLog = skillLog.length ? ` 技能效果：${skillLog.join('；')}。` : '';
+    resultEl.textContent = `玩家回合：你掷出 ${playerRoll} 点，造成 ${playerDamage} 点伤害并击败 Boss！新的 Boss 生命提升到 ${bossMaxHp}，攻击骰提升到 D${bossAttackMax}。${extraLog}轮到你继续行动。`;
     selectedSkillKey = null;
+    activeTurn = 'player';
+    rollButtonEl.disabled = false;
     renderSkillPanel();
     return;
   }
@@ -372,7 +392,7 @@ async function playRound() {
   hideTurnToast();
   await wait(180);
 
-  const bossRoll = await animateDiceRoll(bossDiceEl, 'Boss ', 10, 'boss');
+  const bossRoll = await animateDiceRoll(bossDiceEl, 'Boss ', bossAttackMax, 'boss');
   let bossDamage = bossRoll;
 
   if (bossDamageReductionFn) {
