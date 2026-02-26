@@ -350,6 +350,54 @@ h1 {
   color: #cbd5e1;
 }
 
+
+
+.help-button {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 10;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.help-button:hover {
+  background: rgba(30, 41, 59, 0.95);
+}
+
+.rules-dialog {
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  border-radius: 14px;
+  padding: 1rem;
+  width: min(90vw, 360px);
+  background: rgba(15, 23, 42, 0.96);
+  color: #f8fafc;
+}
+
+.rules-dialog::backdrop {
+  background: rgba(2, 6, 23, 0.5);
+}
+
+.rules-dialog h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.rules-dialog ul {
+  margin: 0 0 0.8rem;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.4rem;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 @keyframes player-roll {
   0% { transform: rotateZ(0deg) scale(1); }
   26% { transform: rotateZ(-20deg) translateY(-4px) scale(1.08); }
@@ -388,6 +436,11 @@ h1 {
 }
 
 @media (max-width: 760px) {
+  .help-button {
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+
   body {
     height: 100dvh;
     min-height: 100dvh;
