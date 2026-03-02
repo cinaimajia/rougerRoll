@@ -5,6 +5,8 @@ const roundCountEl = document.getElementById('roundCount');
 const playerHpEl = document.getElementById('playerHp');
 const bossHpEl = document.getElementById('bossHp');
 const bossMaxHpEl = document.getElementById('bossMaxHp');
+const playerHpFillEl = document.getElementById('playerHpFill');
+const bossHpFillEl = document.getElementById('bossHpFill');
 const playerCardEl = document.getElementById('playerCard');
 const bossCardEl = document.getElementById('bossCard');
 const playerDiceEl = document.getElementById('playerDice');
@@ -78,6 +80,10 @@ let selectedSkillKey = null;
 let skillsState = createSkillsState();
 let battleLogs = [];
 
+function formatLogTimestamp(date = new Date()) {
+  return date.toLocaleTimeString('zh-CN', { hour12: false });
+}
+
 function createSkillsState() {
   return Object.fromEntries(
     Object.entries(SKILL_CONFIG).map(([key, config]) => [
@@ -136,6 +142,8 @@ function updateHpBoard() {
   playerHpEl.textContent = playerHp;
   bossHpEl.textContent = bossHp;
   bossMaxHpEl.textContent = bossMaxHp;
+  playerHpFillEl.style.width = `${(playerHp / MAX_HP) * 100}%`;
+  bossHpFillEl.style.width = `${(bossHp / bossMaxHp) * 100}%`;
 }
 
 function updateBossPowerBoard() {
@@ -222,7 +230,10 @@ function tickSkillCooldowns() {
 
 
 function appendBattleLog(message) {
-  battleLogs.unshift(message);
+  battleLogs.unshift({
+    message,
+    time: formatLogTimestamp(),
+  });
   if (battleLogs.length > 60) {
     battleLogs.length = 60;
   }
@@ -239,9 +250,13 @@ function renderBattleLogs() {
     return;
   }
 
-  battleLogs.forEach((logLine) => {
+  battleLogs.forEach((logEntry) => {
     const item = document.createElement('li');
-    item.textContent = logLine;
+    const timeEl = document.createElement('time');
+    timeEl.textContent = `[${logEntry.time}]`;
+    const msg = document.createElement('span');
+    msg.textContent = logEntry.message;
+    item.append(timeEl, msg);
     battleLogListEl.appendChild(item);
   });
 }

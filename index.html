@@ -19,6 +19,9 @@
         <div class="fighter-meta">
           <h2>Boss</h2>
           <p class="hp-value"><span id="bossHp">20</span> / <span id="bossMaxHp">20</span></p>
+          <div class="hp-bar" aria-hidden="true">
+            <div id="bossHpFill" class="hp-fill boss-hp-fill"></div>
+          </div>
         </div>
         <div class="dice-panel boss-dice-panel" aria-live="polite">
           <p class="dice-title">Boss 骰子（<span id="bossDiceMax">D10</span>）</p>
@@ -32,6 +35,9 @@
         <div class="fighter-meta">
           <h2>玩家</h2>
           <p class="hp-value"><span id="playerHp">20</span> / 20</p>
+          <div class="hp-bar" aria-hidden="true">
+            <div id="playerHpFill" class="hp-fill player-hp-fill"></div>
+          </div>
         </div>
         <div class="dice-panel player-dice-panel" aria-live="polite">
           <p class="dice-title">玩家骰子</p>
