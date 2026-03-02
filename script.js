@@ -12,11 +12,14 @@ const bossDiceEl = document.getElementById('bossDice');
 const playerRollValueEl = document.getElementById('playerRollValue');
 const bossRollValueEl = document.getElementById('bossRollValue');
 const bossDiceMaxEl = document.getElementById('bossDiceMax');
-const turnToastEl = document.getElementById('turnToast');
 const skillPanelEl = document.getElementById('skillPanel');
 const helpButtonEl = document.getElementById('helpButton');
 const rulesDialogEl = document.getElementById('rulesDialog');
 const closeRulesButtonEl = document.getElementById('closeRulesButton');
+const logButtonEl = document.getElementById('logButton');
+const battleLogDialogEl = document.getElementById('battleLogDialog');
+const battleLogListEl = document.getElementById('battleLogList');
+const closeBattleLogButtonEl = document.getElementById('closeBattleLogButton');
 
 const FACE_MAP = {
   1: [5],
@@ -73,6 +76,7 @@ let gameOver = false;
 let activeTurn = 'player';
 let selectedSkillKey = null;
 let skillsState = createSkillsState();
+let battleLogs = [];
 
 function createSkillsState() {
   return Object.fromEntries(
@@ -216,6 +220,32 @@ function tickSkillCooldowns() {
   });
 }
 
+
+function appendBattleLog(message) {
+  battleLogs.unshift(message);
+  if (battleLogs.length > 60) {
+    battleLogs.length = 60;
+  }
+  renderBattleLogs();
+}
+
+function renderBattleLogs() {
+  battleLogListEl.textContent = '';
+
+  if (battleLogs.length === 0) {
+    const emptyItem = document.createElement('li');
+    emptyItem.textContent = '暂无日志，点击“玩家行动”开始记录战斗。';
+    battleLogListEl.appendChild(emptyItem);
+    return;
+  }
+
+  battleLogs.forEach((logLine) => {
+    const item = document.createElement('li');
+    item.textContent = logLine;
+    battleLogListEl.appendChild(item);
+  });
+}
+
 function resetGame() {
   roundCount = 0;
   playerHp = MAX_HP;
@@ -244,7 +274,8 @@ function resetGame() {
   bossDiceEl.classList.remove('turn-focus');
   playerCardEl.dataset.damage = '';
   bossCardEl.dataset.damage = '';
-  hideTurnToast();
+  battleLogs = [];
+  appendBattleLog('战斗重置，新的挑战开始。');
 
   renderDiceFace(playerDiceEl, 1, '玩家');
   renderDiceFace(bossDiceEl, 1, 'Boss ');
@@ -259,14 +290,6 @@ function wait(ms) {
   });
 }
 
-function showTurnToast(text) {
-  turnToastEl.textContent = text;
-  turnToastEl.classList.add('show');
-}
-
-function hideTurnToast() {
-  turnToastEl.classList.remove('show');
-}
 
 function setTurnFocus(owner) {
   playerDiceEl.classList.toggle('turn-focus', owner === 'player');
@@ -339,11 +362,8 @@ async function playRound() {
     renderSkillPanel();
   }
 
-  showTurnToast('轮到玩家了');
   setTurnFocus('player');
-  await wait(560);
-  hideTurnToast();
-  await wait(180);
+  await wait(320);
 
   const playerRoll = await animateDiceRoll(playerDiceEl, '玩家', 6, 'player');
   let playerDamage = playerRoll;
@@ -360,6 +380,7 @@ async function playRound() {
   }
 
   bossHp = Math.max(0, bossHp - playerDamage);
+  appendBattleLog(`玩家行动：掷出 ${playerRoll}，对 Boss 造成 ${playerDamage} 点伤害${skillName ? `（技能：${skillName}）` : ''}。`);
   triggerImpact(bossCardEl);
   showDamageFloat(bossCardEl, playerDamage);
   updateHpBoard();
@@ -377,6 +398,7 @@ async function playRound() {
     updateBossPowerBoard();
 
     const extraLog = skillLog.length ? ` 技能效果：${skillLog.join('；')}。` : '';
+    appendBattleLog(`Boss 被击败并重生：生命上限提升到 ${bossMaxHp}，攻击骰提升到 D${bossAttackMax}。`);
     resultEl.textContent = `玩家回合：你掷出 ${playerRoll} 点，造成 ${playerDamage} 点伤害并击败 Boss！新的 Boss 生命提升到 ${bossMaxHp}，攻击骰提升到 D${bossAttackMax}。${extraLog}轮到你继续行动。`;
     selectedSkillKey = null;
     activeTurn = 'player';
@@ -389,11 +411,8 @@ async function playRound() {
   updateActionButton();
   resultEl.textContent = `玩家回合：你造成 ${playerDamage} 点伤害${skillName ? `（使用技能：${skillName}）` : ''}。`;
 
-  showTurnToast('轮到 Boss 行动');
   setTurnFocus('boss');
-  await wait(560);
-  hideTurnToast();
-  await wait(180);
+  await wait(320);
 
   const bossRoll = await animateDiceRoll(bossDiceEl, 'Boss ', bossAttackMax, 'boss');
   let bossDamage = bossRoll;
@@ -407,6 +426,7 @@ async function playRound() {
   }
 
   playerHp = Math.max(0, playerHp - bossDamage);
+  appendBattleLog(`Boss 行动：掷出 ${bossRoll}，对玩家造成 ${bossDamage} 点伤害。`);
   triggerImpact(playerCardEl);
   showDamageFloat(playerCardEl, bossDamage);
   updateHpBoard();
@@ -418,6 +438,7 @@ async function playRound() {
 
   if (playerHp === 0) {
     resultEl.textContent = `Boss 回合：Boss 掷出 ${bossRoll}，最终造成 ${bossDamage} 点伤害，你被击败了！`;
+    appendBattleLog('玩家被击败，战斗结束。');
     gameOver = true;
     selectedSkillKey = null;
     renderSkillPanel();
@@ -431,6 +452,9 @@ async function playRound() {
   renderSkillPanel();
 
   const extraLog = skillLog.length ? ` 技能效果：${skillLog.join('；')}。` : '';
+  if (skillLog.length) {
+    appendBattleLog(`技能效果：${skillLog.join('；')}。`);
+  }
   resultEl.textContent = `Boss 回合：Boss 掷出 ${bossRoll}，造成 ${bossDamage} 点伤害。轮到你行动。${extraLog}`;
   rollButtonEl.disabled = false;
 }
@@ -450,6 +474,14 @@ closeRulesButtonEl.addEventListener('click', () => {
   rulesDialogEl.close();
 });
 
+logButtonEl.addEventListener('click', () => {
+  battleLogDialogEl.showModal();
+});
+
+closeBattleLogButtonEl.addEventListener('click', () => {
+  battleLogDialogEl.close();
+});
+
 rulesDialogEl.addEventListener('click', (event) => {
   const bounds = rulesDialogEl.getBoundingClientRect();
   const isBackdropClick = (
@@ -461,5 +493,20 @@ rulesDialogEl.addEventListener('click', (event) => {
 
   if (isBackdropClick) {
     rulesDialogEl.close();
+  }
+});
+
+
+battleLogDialogEl.addEventListener('click', (event) => {
+  const bounds = battleLogDialogEl.getBoundingClientRect();
+  const isBackdropClick = (
+    event.clientX < bounds.left
+    || event.clientX > bounds.right
+    || event.clientY < bounds.top
+    || event.clientY > bounds.bottom
+  );
+
+  if (isBackdropClick) {
+    battleLogDialogEl.close();
   }
 });
