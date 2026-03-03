@@ -26,6 +26,8 @@ const battleLogListEl = document.getElementById('battleLogList');
 const closeBattleLogButtonEl = document.getElementById('closeBattleLogButton');
 const boonDialogEl = document.getElementById('boonDialog');
 const boonListEl = document.getElementById('boonList');
+const forgetSkillDialogEl = document.getElementById('forgetSkillDialog');
+const forgetSkillListEl = document.getElementById('forgetSkillList');
 
 const FACE_MAP = {
   1: [5],
@@ -37,6 +39,35 @@ const FACE_MAP = {
 };
 
 const PLAYER_BASE_MAX_HP = 20;
+const PLAYER_MAX_SKILLS = 4;
+
+const BOSS_EXTRA_ABILITIES = [
+  {
+    id: 'thorns',
+    name: '荆棘反噬',
+    description: 'Boss 受到攻击时反伤 1 点。',
+    applyOnPlayerHit(playerDamage) {
+      if (playerDamage <= 0) return 0;
+      return 1;
+    },
+  },
+  {
+    id: 'rage',
+    name: '狂暴',
+    description: 'Boss 每次攻击额外 +1 伤害。',
+    applyBossAttackDamage(baseDamage) {
+      return baseDamage + 1;
+    },
+  },
+  {
+    id: 'ironSkin',
+    name: '铁甲',
+    description: 'Boss 固定减伤 1 点。',
+    applyOnBossDamaged(baseDamage) {
+      return Math.max(0, baseDamage - 1);
+    },
+  },
+];
 
 const SKILL_CONFIG = {
   powerStrike: {
@@ -68,6 +99,25 @@ const SKILL_CONFIG = {
     cooldown: 3,
     applyPlayerAttack(baseDamage) {
       return { damage: baseDamage * 2, note: `狂怒触发，伤害 ${baseDamage}→${baseDamage * 2}` };
+    },
+  },
+  whirlwind: {
+    name: '旋风斩',
+    description: '本回合伤害 +5',
+    maxUses: 2,
+    cooldown: 2,
+    applyPlayerAttack(baseDamage) {
+      return { damage: baseDamage + 5, note: '旋风斩触发，伤害 +5' };
+    },
+  },
+  stoneShield: {
+    name: '石肤护体',
+    description: '本轮受到伤害降低 75%',
+    maxUses: 2,
+    cooldown: 2,
+    applyBossAttack(baseDamage) {
+      const reducedDamage = Math.max(0, Math.floor(baseDamage * 0.25));
+      return { damage: reducedDamage, note: `石肤护体生效，${baseDamage} → ${reducedDamage}` };
     },
   },
 };
@@ -106,7 +156,7 @@ const BOON_POOL = [
     name: '奥术回流',
     description: '随机一个技能次数 +1 且清空其冷却',
     apply() {
-      const keys = Object.keys(SKILL_CONFIG);
+      const keys = [...unlockedSkillKeys];
       const key = keys[Math.floor(Math.random() * keys.length)];
       skillsState[key].usesLeft += 1;
       skillsState[key].cooldownLeft = 0;
@@ -122,6 +172,22 @@ const BOON_POOL = [
       return '普通攻击命中后回复 1 点生命';
     },
   },
+  {
+    id: 'learnWhirlwind',
+    name: '旋风斩',
+    description: '新增技能：旋风斩（本回合伤害 +5）。',
+    apply() {
+      return unlockSkill('whirlwind');
+    },
+  },
+  {
+    id: 'learnStoneShield',
+    name: '石肤护体',
+    description: '新增技能：石肤护体（本轮减伤 75%）。',
+    apply() {
+      return unlockSkill('stoneShield');
+    },
+  },
 ];
 
 let roundCount = 0;
@@ -129,23 +195,27 @@ let playerMaxHp = PLAYER_BASE_MAX_HP;
 let playerHp = PLAYER_BASE_MAX_HP;
 let bossHp = PLAYER_BASE_MAX_HP;
 let bossMaxHp = PLAYER_BASE_MAX_HP;
-let bossAttackMax = 10;
+let bossAttackMax = 6;
 let gameOver = false;
 let activeTurn = 'player';
-let skillsState = createSkillsState();
+let unlockedSkillKeys = ['powerStrike', 'healPulse', 'fury'];
+let skillsState = createSkillsState(unlockedSkillKeys);
 let battleLogs = [];
 let pendingBoonChoices = [];
 let passiveAttackBonus = 0;
 let passiveDamageReduction = 0;
 let lifestealOnHit = 0;
+let pendingForgetSkill = false;
+let bossLevel = 1;
+let bossExtraAbilities = [];
 
 function formatLogTimestamp(date = new Date()) {
   return date.toLocaleTimeString('zh-CN', { hour12: false });
 }
 
-function createSkillsState() {
+function createSkillsState(skillKeys = Object.keys(SKILL_CONFIG)) {
   return Object.fromEntries(
-    Object.entries(SKILL_CONFIG).map(([key, config]) => [key, { usesLeft: config.maxUses, cooldownLeft: 0 }]),
+    skillKeys.map((key) => [key, { usesLeft: SKILL_CONFIG[key].maxUses, cooldownLeft: 0 }]),
   );
 }
 
@@ -219,7 +289,8 @@ function isSkillAvailable(skillKey) {
 
 function renderSkillSubmenu() {
   skillSubmenuEl.textContent = '';
-  Object.entries(SKILL_CONFIG).forEach(([skillKey, config]) => {
+  unlockedSkillKeys.forEach((skillKey) => {
+    const config = SKILL_CONFIG[skillKey];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'skill-item';
@@ -234,7 +305,7 @@ function renderSkillSubmenu() {
 }
 
 function updateActionButtons() {
-  const canAct = !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0;
+  const canAct = !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0 && !pendingForgetSkill;
   attackButtonEl.disabled = !canAct;
   defendButtonEl.disabled = !canAct;
   skillButtonEl.disabled = !canAct;
@@ -313,6 +384,54 @@ function renderBoonDialog() {
   });
 }
 
+function unlockSkill(skillKey) {
+  if (unlockedSkillKeys.includes(skillKey)) {
+    skillsState[skillKey].usesLeft += 1;
+    skillsState[skillKey].cooldownLeft = 0;
+    return `${SKILL_CONFIG[skillKey].name} 已掌握，额外获得 1 次使用次数`;
+  }
+
+  unlockedSkillKeys.push(skillKey);
+  skillsState[skillKey] = { usesLeft: SKILL_CONFIG[skillKey].maxUses, cooldownLeft: 0 };
+  if (unlockedSkillKeys.length > PLAYER_MAX_SKILLS) {
+    pendingForgetSkill = true;
+  }
+  return `学会新技能【${SKILL_CONFIG[skillKey].name}】`;
+}
+
+function renderForgetSkillDialog() {
+  forgetSkillListEl.textContent = '';
+  unlockedSkillKeys.forEach((skillKey) => {
+    const item = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'secondary-button';
+    btn.textContent = `${SKILL_CONFIG[skillKey].name}：${SKILL_CONFIG[skillKey].description}`;
+    btn.addEventListener('click', () => forgetSkill(skillKey));
+    item.appendChild(btn);
+    forgetSkillListEl.appendChild(item);
+  });
+}
+
+function forgetSkill(skillKey) {
+  unlockedSkillKeys = unlockedSkillKeys.filter((key) => key !== skillKey);
+  delete skillsState[skillKey];
+  pendingForgetSkill = unlockedSkillKeys.length > PLAYER_MAX_SKILLS;
+  if (!pendingForgetSkill) forgetSkillDialogEl.close();
+  renderSkillSubmenu();
+  appendBattleLog(`你遗忘了技能【${SKILL_CONFIG[skillKey].name}】。`);
+  updateActionButtons();
+}
+
+function rollBossAbilityUnlock() {
+  if (bossLevel % 4 !== 0) return null;
+  const remaining = BOSS_EXTRA_ABILITIES.filter((a) => !bossExtraAbilities.some((owned) => owned.id === a.id));
+  if (remaining.length === 0) return null;
+  const gained = remaining[Math.floor(Math.random() * remaining.length)];
+  bossExtraAbilities.push(gained);
+  return gained;
+}
+
 function pickBoon(boon) {
   const effect = boon.apply();
   pendingBoonChoices = [];
@@ -321,6 +440,11 @@ function pickBoon(boon) {
   renderSkillSubmenu();
   appendBattleLog(`你选择了正面效果【${boon.name}】：${effect}。`);
   resultEl.textContent = `你选择了【${boon.name}】。继续行动吧！`;
+  if (pendingForgetSkill) {
+    renderForgetSkillDialog();
+    forgetSkillDialogEl.showModal();
+    resultEl.textContent = '技能超过 4 个，请先遗忘 1 个技能。';
+  }
   updateActionButtons();
 }
 
@@ -330,14 +454,18 @@ function resetGame() {
   playerHp = PLAYER_BASE_MAX_HP;
   bossHp = PLAYER_BASE_MAX_HP;
   bossMaxHp = PLAYER_BASE_MAX_HP;
-  bossAttackMax = 10;
+  bossAttackMax = 6;
   gameOver = false;
   activeTurn = 'player';
-  skillsState = createSkillsState();
+  unlockedSkillKeys = ['powerStrike', 'healPulse', 'fury'];
+  skillsState = createSkillsState(unlockedSkillKeys);
   pendingBoonChoices = [];
   passiveAttackBonus = 0;
   passiveDamageReduction = 0;
   lifestealOnHit = 0;
+  pendingForgetSkill = false;
+  bossLevel = 1;
+  bossExtraAbilities = [];
 
   roundCountEl.textContent = roundCount;
   updateHpBoard();
@@ -361,6 +489,7 @@ function resetGame() {
 
   closeSkillSubmenu();
   if (boonDialogEl.open) boonDialogEl.close();
+  if (forgetSkillDialogEl.open) forgetSkillDialogEl.close();
   updateActionButtons();
 }
 
@@ -403,7 +532,7 @@ function animateDiceRoll(diceEl, ownerLabel, maxRoll, owner) {
 }
 
 async function executePlayerAction(actionType, skillKey = null) {
-  if (gameOver || activeTurn !== 'player' || pendingBoonChoices.length > 0) return;
+  if (gameOver || activeTurn !== 'player' || pendingBoonChoices.length > 0 || pendingForgetSkill) return;
 
   updateActionButtons();
   const skillLog = [];
@@ -444,11 +573,30 @@ async function executePlayerAction(actionType, skillKey = null) {
     }
   }
 
+  bossExtraAbilities.forEach((ability) => {
+    if (ability.applyOnBossDamaged) {
+      const reduced = ability.applyOnBossDamaged(playerDamage);
+      if (reduced !== playerDamage) skillLog.push(`Boss 被动【${ability.name}】生效，玩家伤害 ${playerDamage} → ${reduced}`);
+      playerDamage = reduced;
+    }
+  });
+
   bossHp = Math.max(0, bossHp - playerDamage);
   appendBattleLog(`玩家${actionName}：掷出 ${playerRoll}，造成 ${playerDamage} 点伤害。`);
   triggerImpact(bossCardEl);
   showDamageFloat(bossCardEl, playerDamage);
   updateHpBoard();
+
+  bossExtraAbilities.forEach((ability) => {
+    if (ability.applyOnPlayerHit) {
+      const reflect = ability.applyOnPlayerHit(playerDamage);
+      if (reflect > 0) {
+        playerHp = Math.max(0, playerHp - reflect);
+        skillLog.push(`Boss 被动【${ability.name}】触发，玩家受到 ${reflect} 点反伤`);
+        updateHpBoard();
+      }
+    }
+  });
 
   if (lifestealOnHit > 0) {
     const prev = playerHp;
@@ -466,6 +614,7 @@ async function executePlayerAction(actionType, skillKey = null) {
   if (bossHp === 0) {
     roundCount += 1;
     roundCountEl.textContent = roundCount;
+    bossLevel += 1;
     bossAttackMax += 1;
     bossMaxHp += 10;
     bossHp = bossMaxHp;
@@ -477,7 +626,11 @@ async function executePlayerAction(actionType, skillKey = null) {
     renderBoonDialog();
     boonDialogEl.showModal();
 
-    appendBattleLog(`Boss 被击败并重生：生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}。`);
+    const gainedAbility = rollBossAbilityUnlock();
+    appendBattleLog(`Boss 被击败并重生：Lv.${bossLevel}，生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}。`);
+    if (gainedAbility) {
+      appendBattleLog(`Boss 获得新能力【${gainedAbility.name}】：${gainedAbility.description}`);
+    }
     resultEl.textContent = '你击败了 Boss！请先从 3 个正面效果中选择 1 个。';
     if (skillLog.length) appendBattleLog(`附加效果：${skillLog.join('；')}。`);
     updateActionButtons();
@@ -493,6 +646,13 @@ async function executePlayerAction(actionType, skillKey = null) {
 
   const bossRoll = await animateDiceRoll(bossDiceEl, 'Boss ', bossAttackMax, 'boss');
   let bossDamage = Math.max(0, bossRoll - passiveDamageReduction);
+  bossExtraAbilities.forEach((ability) => {
+    if (ability.applyBossAttackDamage) {
+      const boosted = ability.applyBossAttackDamage(bossDamage);
+      if (boosted !== bossDamage) skillLog.push(`Boss 被动【${ability.name}】生效，伤害 ${bossDamage} → ${boosted}`);
+      bossDamage = boosted;
+    }
+  });
   if (passiveDamageReduction > 0) {
     skillLog.push(`守护符文触发，${bossRoll} → ${bossDamage}`);
   }
@@ -577,4 +737,10 @@ battleLogDialogEl.addEventListener('click', (event) => {
   const bounds = battleLogDialogEl.getBoundingClientRect();
   const isBackdropClick = event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom;
   if (isBackdropClick) battleLogDialogEl.close();
+});
+
+forgetSkillDialogEl.addEventListener('click', (event) => {
+  const bounds = forgetSkillDialogEl.getBoundingClientRect();
+  const isBackdropClick = event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom;
+  if (isBackdropClick && !pendingForgetSkill) forgetSkillDialogEl.close();
 });
