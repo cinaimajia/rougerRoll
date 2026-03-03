@@ -253,8 +253,6 @@ let pendingForgetSkill = false;
 let bossLevel = 1;
 let bossExtraAbilities = [];
 let actionInProgress = false;
-let playerCharacterCursor = -1;
-let bossCharacterCursor = -1;
 let currentPlayerCharacter = null;
 let currentBossCharacter = null;
 
@@ -482,9 +480,15 @@ function rollBossAbilityUnlock() {
 }
 
 
-function pickNextCharacter(pool, currentCursor) {
-  const nextCursor = (currentCursor + 1) % pool.length;
-  return { character: pool[nextCursor], cursor: nextCursor };
+function pickRandomCharacter(pool, currentId = null) {
+  if (!pool.length) return null;
+  if (pool.length === 1) return pool[0];
+
+  let candidate = pool[Math.floor(Math.random() * pool.length)];
+  while (candidate.id === currentId) {
+    candidate = pool[Math.floor(Math.random() * pool.length)];
+  }
+  return candidate;
 }
 
 function applyCharacterProfile(side, profile) {
@@ -501,16 +505,12 @@ function applyCharacterProfile(side, profile) {
 }
 
 function refreshPlayerIdentity() {
-  const next = pickNextCharacter(PLAYER_CHARACTERS, playerCharacterCursor);
-  playerCharacterCursor = next.cursor;
-  currentPlayerCharacter = next.character;
+  currentPlayerCharacter = pickRandomCharacter(PLAYER_CHARACTERS, currentPlayerCharacter?.id);
   applyCharacterProfile('player', currentPlayerCharacter);
 }
 
 function refreshBossIdentity() {
-  const next = pickNextCharacter(BOSS_CHARACTERS, bossCharacterCursor);
-  bossCharacterCursor = next.cursor;
-  currentBossCharacter = next.character;
+  currentBossCharacter = pickRandomCharacter(BOSS_CHARACTERS, currentBossCharacter?.id);
   applyCharacterProfile('boss', currentBossCharacter);
 }
 
