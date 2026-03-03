@@ -51,11 +51,14 @@
 
     <section class="controls">
       <div class="action-row">
-        <button id="rollButton" class="roll-button" type="button">攻击</button>
-        <label class="skill-select-wrap" for="skillSelect">
-          <span>技能</span>
-          <select id="skillSelect" class="skill-select" aria-label="选择技能"></select>
-        </label>
+        <div class="action-group" role="group" aria-label="战斗行动">
+          <button id="attackButton" class="roll-button" type="button">普通攻击</button>
+          <div class="skill-menu-wrap">
+            <button id="skillButton" class="roll-button skill-button" type="button" aria-haspopup="menu" aria-expanded="false">技能</button>
+            <div id="skillSubmenu" class="skill-submenu" role="menu" aria-label="技能二级菜单"></div>
+          </div>
+          <button id="defendButton" class="roll-button defend-button" type="button">防御</button>
+        </div>
       </div>
       <div class="extra-row">
         <button id="restartButton" class="secondary-button" type="button">重新开始</button>
@@ -69,10 +72,12 @@
   <dialog id="rulesDialog" class="rules-dialog" aria-label="玩法说明">
     <h2>玩法说明</h2>
     <ul>
-      <li>点击“攻击”，玩家掷 6 面骰并对 Boss 造成等同点数的伤害。</li>
+      <li>点击“普通攻击”，玩家掷 6 面骰并对 Boss 造成等同点数的伤害。</li>
+      <li>普通攻击、技能、防御合并为同一组操作：点击“技能”可打开二级菜单释放技能。</li>
       <li>若 Boss 被击败，会立刻重生：生命值 +10，攻击骰上限 +1。</li>
+      <li>每次击败 Boss 后会随机生成 3 个正面效果，必须选择一个后继续战斗。</li>
       <li>Boss 回合会掷攻击骰反击，点数即伤害；玩家生命归零则失败。</li>
-      <li>可在每轮前通过下拉框选择技能，技能有次数与冷却限制。</li>
+      <li>防御可让本轮 Boss 伤害降低 50%，技能仍有次数与冷却限制。</li>
     </ul>
     <button id="closeRulesButton" class="secondary-button" type="button">关闭</button>
   </dialog>
@@ -81,6 +86,11 @@
     <h2>战斗日志</h2>
     <ul id="battleLogList" class="battle-log-list"></ul>
     <button id="closeBattleLogButton" class="secondary-button" type="button">关闭</button>
+  </dialog>
+
+  <dialog id="boonDialog" class="battle-log-dialog" aria-label="选择正面效果">
+    <h2>胜利奖励：选择一个正面效果</h2>
+    <ul id="boonList" class="battle-log-list"></ul>
   </dialog>
 
   <script src="script.js"></script>
