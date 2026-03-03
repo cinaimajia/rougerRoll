@@ -46,32 +46,43 @@ const FACE_MAP = {
 const PLAYER_BASE_MAX_HP = 20;
 const PLAYER_MAX_SKILLS = 4;
 
-const PLAYER_TITLES = ['星刃', '雷影', '霜心', '焰羽', '月歌', '苍岚', '夜隼', '曙光', '赤霆', '流云'];
-const PLAYER_CODES = ['001', '017', '033', '049', '058', '067', '072', '084', '095', '108'];
-const BOSS_TITLES = ['噬界', '深渊', '断罪', '蚀日', '永夜', '血棘', '熔核', '风暴', '冥火', '寒狱'];
-const BOSS_CODES = ['A01', 'B13', 'C27', 'D39', 'E52', 'F64', 'G70', 'H88', 'I94', 'J99'];
-const BOSS_FORMS = ['巨龙', '魔像', '领主', '收割者', '女王', '剑圣', '猎犬', '祭司', '泰坦', '君王'];
+const PLAYER_NAMES = [
+  '深海守护者',
+  '稳重的鸵鸟',
+  '雾林旅人',
+  '暮光行者',
+  '寒潮追风者',
+  '星港巡夜人',
+  '静风祈愿师',
+  '晨曦锻刃者',
+  '苍穹观测员',
+  '落雪守门人',
+];
 
-function createCharacterPool({ side, titles, codes, forms = [] }) {
-  const pool = [];
-  titles.forEach((title, i) => {
-    codes.forEach((code, j) => {
-      const order = i * codes.length + j + 1;
-      const form = forms.length ? forms[(i + j) % forms.length] : null;
-      const name = side === 'player'
-        ? `${title}${code}号`
-        : `${title}${form}${code}`;
-      const art = side === 'player'
-        ? `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6e3f4,c0aede,d1d4f9`
-        : `https://api.dicebear.com/9.x/fun-emoji/svg?seed=${encodeURIComponent(name)}&backgroundColor=ffdfbf,ffd5dc,fecaca`;
-      pool.push({ id: `${side}-${order}`, name, art });
-    });
+const BOSS_NAMES = [
+  '噬魂裂渊暴君',
+  '血棘吞城巨兽',
+  '永夜断罪魔君',
+  '炼狱噩兆之王',
+  '灭烬灾厄领主',
+  '冥河屠戮祭司',
+  '骸骨风暴统帅',
+  '灾厄蚀日君王',
+  '深狱狂啸猎皇',
+  '赤月焚界魔像',
+];
+
+function createCharacterPool({ side, names }) {
+  return names.map((name, index) => {
+    const art = side === 'player'
+      ? `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6e3f4,c0aede,d1d4f9`
+      : `https://api.dicebear.com/9.x/lorelei/svg?seed=${encodeURIComponent(name)}&backgroundColor=7f1d1d,b91c1c,111827&mood=angry`;
+    return { id: `${side}-${index + 1}`, name, art };
   });
-  return pool;
 }
 
-const PLAYER_CHARACTERS = createCharacterPool({ side: 'player', titles: PLAYER_TITLES, codes: PLAYER_CODES });
-const BOSS_CHARACTERS = createCharacterPool({ side: 'boss', titles: BOSS_TITLES, codes: BOSS_CODES, forms: BOSS_FORMS });
+const PLAYER_CHARACTERS = createCharacterPool({ side: 'player', names: PLAYER_NAMES });
+const BOSS_CHARACTERS = createCharacterPool({ side: 'boss', names: BOSS_NAMES });
 
 
 const BOSS_EXTRA_ABILITIES = [
