@@ -50,10 +50,17 @@
     </section>
 
     <section class="controls">
-      <button id="rollButton" class="roll-button" type="button">玩家行动</button>
-      <button id="restartButton" class="secondary-button" type="button">重新开始</button>
-      <button id="logButton" class="secondary-button" type="button" aria-haspopup="dialog" aria-controls="battleLogDialog">战斗日志</button>
-      <div id="skillPanel" class="skill-panel" aria-label="技能栏"></div>
+      <div class="action-row">
+        <button id="rollButton" class="roll-button" type="button">攻击</button>
+        <label class="skill-select-wrap" for="skillSelect">
+          <span>技能</span>
+          <select id="skillSelect" class="skill-select" aria-label="选择技能"></select>
+        </label>
+      </div>
+      <div class="extra-row">
+        <button id="restartButton" class="secondary-button" type="button">重新开始</button>
+        <button id="logButton" class="secondary-button" type="button" aria-haspopup="dialog" aria-controls="battleLogDialog">战斗日志</button>
+      </div>
       <p class="stats">回合数：<span id="roundCount">0</span></p>
     </section>
   </main>
@@ -62,10 +69,10 @@
   <dialog id="rulesDialog" class="rules-dialog" aria-label="玩法说明">
     <h2>玩法说明</h2>
     <ul>
-      <li>点击“玩家行动”，玩家掷 6 面骰并对 Boss 造成等同点数的伤害。</li>
+      <li>点击“攻击”，玩家掷 6 面骰并对 Boss 造成等同点数的伤害。</li>
       <li>若 Boss 被击败，会立刻重生：生命值 +10，攻击骰上限 +1。</li>
       <li>Boss 回合会掷攻击骰反击，点数即伤害；玩家生命归零则失败。</li>
-      <li>可在每轮前选择技能，技能有次数与冷却限制。</li>
+      <li>可在每轮前通过下拉框选择技能，技能有次数与冷却限制。</li>
     </ul>
     <button id="closeRulesButton" class="secondary-button" type="button">关闭</button>
   </dialog>

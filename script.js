@@ -14,7 +14,7 @@ const bossDiceEl = document.getElementById('bossDice');
 const playerRollValueEl = document.getElementById('playerRollValue');
 const bossRollValueEl = document.getElementById('bossRollValue');
 const bossDiceMaxEl = document.getElementById('bossDiceMax');
-const skillPanelEl = document.getElementById('skillPanel');
+const skillSelectEl = document.getElementById('skillSelect');
 const helpButtonEl = document.getElementById('helpButton');
 const rulesDialogEl = document.getElementById('rulesDialog');
 const closeRulesButtonEl = document.getElementById('closeRulesButton');
@@ -135,7 +135,7 @@ function updateRollValue(owner, value) {
 }
 
 function updateActionButton() {
-  rollButtonEl.textContent = '玩家行动';
+  rollButtonEl.textContent = '攻击';
 }
 
 function updateHpBoard() {
@@ -181,33 +181,28 @@ function isSkillAvailable(skillKey) {
 }
 
 function renderSkillPanel() {
-  skillPanelEl.textContent = '';
+  const canSelectSkill = !gameOver && activeTurn === 'player';
+  skillSelectEl.disabled = !canSelectSkill;
+  skillSelectEl.textContent = '';
+
+  const noSkillOption = document.createElement('option');
+  noSkillOption.value = '';
+  noSkillOption.textContent = '不使用技能';
+  skillSelectEl.appendChild(noSkillOption);
 
   Object.entries(SKILL_CONFIG).forEach(([skillKey, config]) => {
     const skillState = skillsState[skillKey];
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'skill-button';
-    button.dataset.skillKey = skillKey;
-
-    const available = isSkillAvailable(skillKey);
-    button.disabled = !available || gameOver || activeTurn !== 'player';
-    button.classList.toggle('active', selectedSkillKey === skillKey);
+    const option = document.createElement('option');
+    option.value = skillKey;
+    option.disabled = !isSkillAvailable(skillKey);
 
     const status = getSkillStatusText(skillKey);
-    button.innerHTML = `
-      <strong>${config.name}</strong>
-      <span>${config.description}</span>
-      <small>剩余 ${skillState.usesLeft} 次 · ${status}</small>
-    `;
+    option.textContent = `${config.name}（剩余 ${skillState.usesLeft} · ${status}）`;
 
-    button.addEventListener('click', () => {
-      selectedSkillKey = selectedSkillKey === skillKey ? null : skillKey;
-      renderSkillPanel();
-    });
-
-    skillPanelEl.appendChild(button);
+    skillSelectEl.appendChild(option);
   });
+
+  skillSelectEl.value = selectedSkillKey ?? '';
 }
 
 function consumeSkill(skillKey) {
@@ -245,7 +240,7 @@ function renderBattleLogs() {
 
   if (battleLogs.length === 0) {
     const emptyItem = document.createElement('li');
-    emptyItem.textContent = '暂无日志，点击“玩家行动”开始记录战斗。';
+    emptyItem.textContent = '暂无日志，点击“攻击”开始记录战斗。';
     battleLogListEl.appendChild(emptyItem);
     return;
   }
@@ -275,7 +270,7 @@ function resetGame() {
   roundCountEl.textContent = roundCount;
   updateHpBoard();
   updateBossPowerBoard();
-  resultEl.textContent = '点击“玩家行动”开始战斗！';
+  resultEl.textContent = '点击“攻击”开始战斗！';
   rollButtonEl.disabled = false;
   updateActionButton();
 
@@ -358,6 +353,8 @@ async function playRound() {
   const skillLog = [];
   let bossDamageReductionFn = null;
   let skillName = '';
+
+  selectedSkillKey = skillSelectEl.value || null;
 
   if (selectedSkillKey && isSkillAvailable(selectedSkillKey)) {
     const skillConfig = consumeSkill(selectedSkillKey);
@@ -524,4 +521,9 @@ battleLogDialogEl.addEventListener('click', (event) => {
   if (isBackdropClick) {
     battleLogDialogEl.close();
   }
+});
+
+
+skillSelectEl.addEventListener('change', () => {
+  selectedSkillKey = skillSelectEl.value || null;
 });
