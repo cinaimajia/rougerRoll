@@ -208,6 +208,7 @@ let lifestealOnHit = 0;
 let pendingForgetSkill = false;
 let bossLevel = 1;
 let bossExtraAbilities = [];
+let actionInProgress = false;
 
 function formatLogTimestamp(date = new Date()) {
   return date.toLocaleTimeString('zh-CN', { hour12: false });
@@ -297,7 +298,7 @@ function renderSkillSubmenu() {
     btn.dataset.skillKey = skillKey;
     btn.setAttribute('role', 'menuitem');
     const status = getSkillStatusText(skillKey);
-    const available = isSkillAvailable(skillKey) && !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0;
+    const available = isSkillAvailable(skillKey) && !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0 && !actionInProgress;
     btn.disabled = !available;
     btn.textContent = `${config.name}（剩余 ${skillsState[skillKey].usesLeft} · ${status}）`;
     skillSubmenuEl.appendChild(btn);
@@ -305,7 +306,7 @@ function renderSkillSubmenu() {
 }
 
 function updateActionButtons() {
-  const canAct = !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0 && !pendingForgetSkill;
+  const canAct = !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0 && !pendingForgetSkill && !actionInProgress;
   attackButtonEl.disabled = !canAct;
   defendButtonEl.disabled = !canAct;
   skillButtonEl.disabled = !canAct;
@@ -464,6 +465,7 @@ function resetGame() {
   passiveDamageReduction = 0;
   lifestealOnHit = 0;
   pendingForgetSkill = false;
+  actionInProgress = false;
   bossLevel = 1;
   bossExtraAbilities = [];
 
@@ -532,166 +534,174 @@ function animateDiceRoll(diceEl, ownerLabel, maxRoll, owner) {
 }
 
 async function executePlayerAction(actionType, skillKey = null) {
-  if (gameOver || activeTurn !== 'player' || pendingBoonChoices.length > 0 || pendingForgetSkill) return;
+  if (gameOver || activeTurn !== 'player' || pendingBoonChoices.length > 0 || pendingForgetSkill || actionInProgress) return;
 
+  actionInProgress = true;
   updateActionButtons();
-  const skillLog = [];
-  let bossDamageReductionFn = null;
-  let actionName = actionType === 'attack' ? '普通攻击' : '防御';
 
-  if (actionType === 'skill' && skillKey && isSkillAvailable(skillKey)) {
-    const skillConfig = consumeSkill(skillKey);
-    actionName = `技能：${skillConfig.name}`;
-    if (skillConfig.applyOnUse) {
-      const useResult = skillConfig.applyOnUse();
-      if (useResult?.note) skillLog.push(useResult.note);
+  try {
+    const skillLog = [];
+    let bossDamageReductionFn = null;
+    let actionName = actionType === 'attack' ? '普通攻击' : '防御';
+
+    if (actionType === 'skill' && skillKey && isSkillAvailable(skillKey)) {
+      const skillConfig = consumeSkill(skillKey);
+      actionName = `技能：${skillConfig.name}`;
+      if (skillConfig.applyOnUse) {
+        const useResult = skillConfig.applyOnUse();
+        if (useResult?.note) skillLog.push(useResult.note);
+      }
+      if (skillConfig.applyBossAttack) {
+        bossDamageReductionFn = skillConfig.applyBossAttack;
+      }
     }
-    if (skillConfig.applyBossAttack) {
-      bossDamageReductionFn = skillConfig.applyBossAttack;
+
+    if (actionType === 'defend') {
+      bossDamageReductionFn = (baseDamage) => {
+        const reducedDamage = Math.max(0, Math.floor(baseDamage / 2));
+        return { damage: reducedDamage, note: `防御生效，${baseDamage} → ${reducedDamage}` };
+      };
     }
-  }
 
-  if (actionType === 'defend') {
-    bossDamageReductionFn = (baseDamage) => {
-      const reducedDamage = Math.max(0, Math.floor(baseDamage / 2));
-      return { damage: reducedDamage, note: `防御生效，${baseDamage} → ${reducedDamage}` };
-    };
-  }
+    setTurnFocus('player');
+    await wait(320);
 
-  setTurnFocus('player');
-  await wait(320);
+    const playerRoll = await animateDiceRoll(playerDiceEl, '玩家', 6, 'player');
+    let playerDamage = playerRoll + passiveAttackBonus;
 
-  const playerRoll = await animateDiceRoll(playerDiceEl, '玩家', 6, 'player');
-  let playerDamage = playerRoll + passiveAttackBonus;
-
-  if (actionType === 'skill' && skillKey) {
-    const skillConfig = SKILL_CONFIG[skillKey];
-    if (skillConfig.applyPlayerAttack) {
-      const skillAttackResult = skillConfig.applyPlayerAttack(playerDamage);
-      playerDamage = skillAttackResult.damage;
-      if (skillAttackResult.note) skillLog.push(skillAttackResult.note);
+    if (actionType === 'skill' && skillKey) {
+      const skillConfig = SKILL_CONFIG[skillKey];
+      if (skillConfig.applyPlayerAttack) {
+        const skillAttackResult = skillConfig.applyPlayerAttack(playerDamage);
+        playerDamage = skillAttackResult.damage;
+        if (skillAttackResult.note) skillLog.push(skillAttackResult.note);
+      }
     }
-  }
 
-  bossExtraAbilities.forEach((ability) => {
-    if (ability.applyOnBossDamaged) {
-      const reduced = ability.applyOnBossDamaged(playerDamage);
-      if (reduced !== playerDamage) skillLog.push(`Boss 被动【${ability.name}】生效，玩家伤害 ${playerDamage} → ${reduced}`);
-      playerDamage = reduced;
-    }
-  });
+    bossExtraAbilities.forEach((ability) => {
+      if (ability.applyOnBossDamaged) {
+        const reduced = ability.applyOnBossDamaged(playerDamage);
+        if (reduced !== playerDamage) skillLog.push(`Boss 被动【${ability.name}】生效，玩家伤害 ${playerDamage} → ${reduced}`);
+        playerDamage = reduced;
+      }
+    });
 
-  bossHp = Math.max(0, bossHp - playerDamage);
-  appendBattleLog(`玩家${actionName}：掷出 ${playerRoll}，造成 ${playerDamage} 点伤害。`);
-  triggerImpact(bossCardEl);
-  showDamageFloat(bossCardEl, playerDamage);
-  updateHpBoard();
+    bossHp = Math.max(0, bossHp - playerDamage);
+    appendBattleLog(`玩家${actionName}：掷出 ${playerRoll}，造成 ${playerDamage} 点伤害。`);
+    triggerImpact(bossCardEl);
+    showDamageFloat(bossCardEl, playerDamage);
+    updateHpBoard();
 
-  bossExtraAbilities.forEach((ability) => {
-    if (ability.applyOnPlayerHit) {
-      const reflect = ability.applyOnPlayerHit(playerDamage);
-      if (reflect > 0) {
-        playerHp = Math.max(0, playerHp - reflect);
-        skillLog.push(`Boss 被动【${ability.name}】触发，玩家受到 ${reflect} 点反伤`);
+    bossExtraAbilities.forEach((ability) => {
+      if (ability.applyOnPlayerHit) {
+        const reflect = ability.applyOnPlayerHit(playerDamage);
+        if (reflect > 0) {
+          playerHp = Math.max(0, playerHp - reflect);
+          skillLog.push(`Boss 被动【${ability.name}】触发，玩家受到 ${reflect} 点反伤`);
+          updateHpBoard();
+        }
+      }
+    });
+
+    if (lifestealOnHit > 0) {
+      const prev = playerHp;
+      playerHp = Math.min(playerMaxHp, playerHp + lifestealOnHit);
+      const healed = playerHp - prev;
+      if (healed > 0) {
+        skillLog.push(`嗜血触发，回复 ${healed} 点生命`);
         updateHpBoard();
       }
     }
-  });
 
-  if (lifestealOnHit > 0) {
-    const prev = playerHp;
-    playerHp = Math.min(playerMaxHp, playerHp + lifestealOnHit);
-    const healed = playerHp - prev;
-    if (healed > 0) {
-      skillLog.push(`嗜血触发，回复 ${healed} 点生命`);
+    setTurnFocus(null);
+    await wait(680);
+
+    if (bossHp === 0) {
+      roundCount += 1;
+      roundCountEl.textContent = roundCount;
+      bossLevel += 1;
+      bossAttackMax += 1;
+      bossMaxHp += 10;
+      bossHp = bossMaxHp;
+      tickSkillCooldowns();
       updateHpBoard();
+      updateBossPowerBoard();
+
+      pendingBoonChoices = getRandomBoonChoices();
+      renderBoonDialog();
+      boonDialogEl.showModal();
+
+      const gainedAbility = rollBossAbilityUnlock();
+      appendBattleLog(`Boss 被击败并重生：Lv.${bossLevel}，生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}。`);
+      if (gainedAbility) {
+        appendBattleLog(`Boss 获得新能力【${gainedAbility.name}】：${gainedAbility.description}`);
+      }
+      resultEl.textContent = '你击败了 Boss！请先从 3 个正面效果中选择 1 个。';
+      if (skillLog.length) appendBattleLog(`附加效果：${skillLog.join('；')}。`);
+      updateActionButtons();
+      return;
     }
-  }
 
-  setTurnFocus(null);
-  await wait(680);
+    activeTurn = 'boss';
+    updateActionButtons();
+    resultEl.textContent = `玩家回合：${actionName}造成 ${playerDamage} 点伤害。`;
 
-  if (bossHp === 0) {
+    setTurnFocus('boss');
+    await wait(320);
+
+    const bossRoll = await animateDiceRoll(bossDiceEl, 'Boss ', bossAttackMax, 'boss');
+    let bossDamage = Math.max(0, bossRoll - passiveDamageReduction);
+    bossExtraAbilities.forEach((ability) => {
+      if (ability.applyBossAttackDamage) {
+        const boosted = ability.applyBossAttackDamage(bossDamage);
+        if (boosted !== bossDamage) skillLog.push(`Boss 被动【${ability.name}】生效，伤害 ${bossDamage} → ${boosted}`);
+        bossDamage = boosted;
+      }
+    });
+    if (passiveDamageReduction > 0) {
+      skillLog.push(`守护符文触发，${bossRoll} → ${bossDamage}`);
+    }
+
+    if (bossDamageReductionFn) {
+      const reducedResult = bossDamageReductionFn(bossDamage);
+      bossDamage = reducedResult.damage;
+      if (reducedResult.note) skillLog.push(reducedResult.note);
+    }
+
+    playerHp = Math.max(0, playerHp - bossDamage);
+    appendBattleLog(`Boss 行动：掷出 ${bossRoll}，对玩家造成 ${bossDamage} 点伤害。`);
+    triggerImpact(playerCardEl);
+    showDamageFloat(playerCardEl, bossDamage);
+    updateHpBoard();
+
+    setTurnFocus(null);
+    await wait(680);
+
     roundCount += 1;
     roundCountEl.textContent = roundCount;
-    bossLevel += 1;
-    bossAttackMax += 1;
-    bossMaxHp += 10;
-    bossHp = bossMaxHp;
+
+    if (playerHp === 0) {
+      resultEl.textContent = `Boss 回合：Boss 掷出 ${bossRoll}，最终造成 ${bossDamage} 点伤害，你被击败了！`;
+      appendBattleLog('玩家被击败，战斗结束。');
+      gameOver = true;
+      updateActionButtons();
+      return;
+    }
+
     tickSkillCooldowns();
-    updateHpBoard();
-    updateBossPowerBoard();
-
-    pendingBoonChoices = getRandomBoonChoices();
-    renderBoonDialog();
-    boonDialogEl.showModal();
-
-    const gainedAbility = rollBossAbilityUnlock();
-    appendBattleLog(`Boss 被击败并重生：Lv.${bossLevel}，生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}。`);
-    if (gainedAbility) {
-      appendBattleLog(`Boss 获得新能力【${gainedAbility.name}】：${gainedAbility.description}`);
-    }
-    resultEl.textContent = '你击败了 Boss！请先从 3 个正面效果中选择 1 个。';
-    if (skillLog.length) appendBattleLog(`附加效果：${skillLog.join('；')}。`);
+    activeTurn = 'player';
     updateActionButtons();
-    return;
-  }
 
-  activeTurn = 'boss';
-  updateActionButtons();
-  resultEl.textContent = `玩家回合：${actionName}造成 ${playerDamage} 点伤害。`;
-
-  setTurnFocus('boss');
-  await wait(320);
-
-  const bossRoll = await animateDiceRoll(bossDiceEl, 'Boss ', bossAttackMax, 'boss');
-  let bossDamage = Math.max(0, bossRoll - passiveDamageReduction);
-  bossExtraAbilities.forEach((ability) => {
-    if (ability.applyBossAttackDamage) {
-      const boosted = ability.applyBossAttackDamage(bossDamage);
-      if (boosted !== bossDamage) skillLog.push(`Boss 被动【${ability.name}】生效，伤害 ${bossDamage} → ${boosted}`);
-      bossDamage = boosted;
+    if (skillLog.length) {
+      appendBattleLog(`附加效果：${skillLog.join('；')}。`);
     }
-  });
-  if (passiveDamageReduction > 0) {
-    skillLog.push(`守护符文触发，${bossRoll} → ${bossDamage}`);
-  }
-
-  if (bossDamageReductionFn) {
-    const reducedResult = bossDamageReductionFn(bossDamage);
-    bossDamage = reducedResult.damage;
-    if (reducedResult.note) skillLog.push(reducedResult.note);
-  }
-
-  playerHp = Math.max(0, playerHp - bossDamage);
-  appendBattleLog(`Boss 行动：掷出 ${bossRoll}，对玩家造成 ${bossDamage} 点伤害。`);
-  triggerImpact(playerCardEl);
-  showDamageFloat(playerCardEl, bossDamage);
-  updateHpBoard();
-
-  setTurnFocus(null);
-  await wait(680);
-
-  roundCount += 1;
-  roundCountEl.textContent = roundCount;
-
-  if (playerHp === 0) {
-    resultEl.textContent = `Boss 回合：Boss 掷出 ${bossRoll}，最终造成 ${bossDamage} 点伤害，你被击败了！`;
-    appendBattleLog('玩家被击败，战斗结束。');
-    gameOver = true;
+    resultEl.textContent = `Boss 回合：Boss 掷出 ${bossRoll}，造成 ${bossDamage} 点伤害。轮到你行动。`;
+  } finally {
+    actionInProgress = false;
     updateActionButtons();
-    return;
   }
-
-  tickSkillCooldowns();
-  activeTurn = 'player';
-  updateActionButtons();
-
-  if (skillLog.length) {
-    appendBattleLog(`附加效果：${skillLog.join('；')}。`);
-  }
-  resultEl.textContent = `Boss 回合：Boss 掷出 ${bossRoll}，造成 ${bossDamage} 点伤害。轮到你行动。`;
 }
+
 
 setupDice(playerDiceEl);
 setupDice(bossDiceEl);
