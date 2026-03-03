@@ -303,6 +303,16 @@ h1 { margin: 0; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 
 .rules-dialog h2,
 .battle-log-dialog h2 { margin: 0 0 0.6rem; font-size: 1.05rem; }
 
+.rules-subtitle {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  color: #f1cf84;
+}
+
+.rules-skill-list {
+  margin-bottom: 1rem;
+}
+
 .rules-dialog ul,
 .battle-log-list {
   margin: 0 0 0.8rem;

@@ -24,6 +24,7 @@ const logButtonEl = document.getElementById('logButton');
 const battleLogDialogEl = document.getElementById('battleLogDialog');
 const battleLogListEl = document.getElementById('battleLogList');
 const closeBattleLogButtonEl = document.getElementById('closeBattleLogButton');
+const skillGuideListEl = document.getElementById('skillGuideList');
 const boonDialogEl = document.getElementById('boonDialog');
 const boonListEl = document.getElementById('boonList');
 const forgetSkillDialogEl = document.getElementById('forgetSkillDialog');
@@ -121,6 +122,17 @@ const SKILL_CONFIG = {
     },
   },
 };
+
+
+function renderSkillGuideList() {
+  if (!skillGuideListEl) return;
+  skillGuideListEl.textContent = '';
+  Object.values(SKILL_CONFIG).forEach((skill) => {
+    const li = document.createElement('li');
+    li.textContent = `${skill.name}：${skill.description}（次数 ${skill.maxUses}，冷却 ${skill.cooldown} 回合）`;
+    skillGuideListEl.appendChild(li);
+  });
+}
 
 const BOON_POOL = [
   {
@@ -705,6 +717,7 @@ async function executePlayerAction(actionType, skillKey = null) {
 
 setupDice(playerDiceEl);
 setupDice(bossDiceEl);
+renderSkillGuideList();
 resetGame();
 
 attackButtonEl.addEventListener('click', () => executePlayerAction('attack'));
