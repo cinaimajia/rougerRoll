@@ -14,9 +14,9 @@
 
     <section class="battle-stage" aria-label="战斗舞台">
       <article class="fighter boss" id="bossCard">
-        <img src="assets/boss-art.svg" class="character-art" alt="Boss 原画：暗影巨龙" />
+        <img id="bossArt" src="assets/boss-art.svg" class="character-art" alt="Boss 原画：暗影巨龙" />
         <div class="fighter-meta">
-          <h2>Boss</h2>
+          <h2 id="bossName">Boss</h2>
           <p class="hp-value"><span id="bossHp">20</span> / <span id="bossMaxHp">20</span></p>
           <div class="hp-bar" aria-hidden="true">
             <div id="bossHpFill" class="hp-fill boss-hp-fill"></div>
@@ -30,9 +30,9 @@
       </article>
 
       <article class="fighter player" id="playerCard">
-        <img src="assets/player-art.svg" class="character-art" alt="玩家原画：雷属性训练家" />
+        <img id="playerArt" src="assets/player-art.svg" class="character-art" alt="玩家原画：雷属性训练家" />
         <div class="fighter-meta">
-          <h2>玩家</h2>
+          <h2 id="playerName">玩家</h2>
           <p class="hp-value"><span id="playerHp">20</span> / 20</p>
           <div class="hp-bar" aria-hidden="true">
             <div id="playerHpFill" class="hp-fill player-hp-fill"></div>

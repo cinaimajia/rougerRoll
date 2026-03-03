@@ -12,6 +12,10 @@ const playerHpFillEl = document.getElementById('playerHpFill');
 const bossHpFillEl = document.getElementById('bossHpFill');
 const playerCardEl = document.getElementById('playerCard');
 const bossCardEl = document.getElementById('bossCard');
+const playerNameEl = document.getElementById('playerName');
+const bossNameEl = document.getElementById('bossName');
+const playerArtEl = document.getElementById('playerArt');
+const bossArtEl = document.getElementById('bossArt');
 const playerDiceEl = document.getElementById('playerDice');
 const bossDiceEl = document.getElementById('bossDice');
 const playerRollValueEl = document.getElementById('playerRollValue');
@@ -41,6 +45,34 @@ const FACE_MAP = {
 
 const PLAYER_BASE_MAX_HP = 20;
 const PLAYER_MAX_SKILLS = 4;
+
+const PLAYER_TITLES = ['星刃', '雷影', '霜心', '焰羽', '月歌', '苍岚', '夜隼', '曙光', '赤霆', '流云'];
+const PLAYER_CODES = ['001', '017', '033', '049', '058', '067', '072', '084', '095', '108'];
+const BOSS_TITLES = ['噬界', '深渊', '断罪', '蚀日', '永夜', '血棘', '熔核', '风暴', '冥火', '寒狱'];
+const BOSS_CODES = ['A01', 'B13', 'C27', 'D39', 'E52', 'F64', 'G70', 'H88', 'I94', 'J99'];
+const BOSS_FORMS = ['巨龙', '魔像', '领主', '收割者', '女王', '剑圣', '猎犬', '祭司', '泰坦', '君王'];
+
+function createCharacterPool({ side, titles, codes, forms = [] }) {
+  const pool = [];
+  titles.forEach((title, i) => {
+    codes.forEach((code, j) => {
+      const order = i * codes.length + j + 1;
+      const form = forms.length ? forms[(i + j) % forms.length] : null;
+      const name = side === 'player'
+        ? `${title}${code}号`
+        : `${title}${form}${code}`;
+      const art = side === 'player'
+        ? `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6e3f4,c0aede,d1d4f9`
+        : `https://api.dicebear.com/9.x/fun-emoji/svg?seed=${encodeURIComponent(name)}&backgroundColor=ffdfbf,ffd5dc,fecaca`;
+      pool.push({ id: `${side}-${order}`, name, art });
+    });
+  });
+  return pool;
+}
+
+const PLAYER_CHARACTERS = createCharacterPool({ side: 'player', titles: PLAYER_TITLES, codes: PLAYER_CODES });
+const BOSS_CHARACTERS = createCharacterPool({ side: 'boss', titles: BOSS_TITLES, codes: BOSS_CODES, forms: BOSS_FORMS });
+
 
 const BOSS_EXTRA_ABILITIES = [
   {
@@ -221,6 +253,10 @@ let pendingForgetSkill = false;
 let bossLevel = 1;
 let bossExtraAbilities = [];
 let actionInProgress = false;
+let playerCharacterCursor = -1;
+let bossCharacterCursor = -1;
+let currentPlayerCharacter = null;
+let currentBossCharacter = null;
 
 function formatLogTimestamp(date = new Date()) {
   return date.toLocaleTimeString('zh-CN', { hour12: false });
@@ -445,6 +481,39 @@ function rollBossAbilityUnlock() {
   return gained;
 }
 
+
+function pickNextCharacter(pool, currentCursor) {
+  const nextCursor = (currentCursor + 1) % pool.length;
+  return { character: pool[nextCursor], cursor: nextCursor };
+}
+
+function applyCharacterProfile(side, profile) {
+  if (!profile) return;
+  if (side === 'player') {
+    playerNameEl.textContent = profile.name;
+    playerArtEl.src = profile.art;
+    playerArtEl.alt = `玩家立绘：${profile.name}`;
+  } else {
+    bossNameEl.textContent = profile.name;
+    bossArtEl.src = profile.art;
+    bossArtEl.alt = `Boss 立绘：${profile.name}`;
+  }
+}
+
+function refreshPlayerIdentity() {
+  const next = pickNextCharacter(PLAYER_CHARACTERS, playerCharacterCursor);
+  playerCharacterCursor = next.cursor;
+  currentPlayerCharacter = next.character;
+  applyCharacterProfile('player', currentPlayerCharacter);
+}
+
+function refreshBossIdentity() {
+  const next = pickNextCharacter(BOSS_CHARACTERS, bossCharacterCursor);
+  bossCharacterCursor = next.cursor;
+  currentBossCharacter = next.character;
+  applyCharacterProfile('boss', currentBossCharacter);
+}
+
 function pickBoon(boon) {
   const effect = boon.apply();
   pendingBoonChoices = [];
@@ -481,6 +550,9 @@ function resetGame() {
   bossLevel = 1;
   bossExtraAbilities = [];
 
+  refreshPlayerIdentity();
+  refreshBossIdentity();
+
   roundCountEl.textContent = roundCount;
   updateHpBoard();
   updateBossPowerBoard();
@@ -494,7 +566,7 @@ function resetGame() {
   bossCardEl.dataset.damage = '';
 
   battleLogs = [];
-  appendBattleLog('战斗重置，新的挑战开始。');
+  appendBattleLog(`战斗重置，新的挑战开始。玩家：${currentPlayerCharacter.name}，Boss：${currentBossCharacter.name}。`);
 
   renderDiceFace(playerDiceEl, 1, '玩家');
   renderDiceFace(bossDiceEl, 1, 'Boss ');
@@ -644,11 +716,12 @@ async function executePlayerAction(actionType, skillKey = null) {
       boonDialogEl.showModal();
 
       const gainedAbility = rollBossAbilityUnlock();
-      appendBattleLog(`Boss 被击败并重生：Lv.${bossLevel}，生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}。`);
+      refreshBossIdentity();
+      appendBattleLog(`Boss 被击败并重生：${currentBossCharacter.name}（Lv.${bossLevel}，生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}）。`);
       if (gainedAbility) {
         appendBattleLog(`Boss 获得新能力【${gainedAbility.name}】：${gainedAbility.description}`);
       }
-      resultEl.textContent = '你击败了 Boss！请先从 3 个正面效果中选择 1 个。';
+      resultEl.textContent = `你击败了 Boss！新敌人【${currentBossCharacter.name}】已登场，请先从 3 个正面效果中选择 1 个。`;
       if (skillLog.length) appendBattleLog(`附加效果：${skillLog.join('；')}。`);
       updateActionButtons();
       return;
@@ -681,7 +754,7 @@ async function executePlayerAction(actionType, skillKey = null) {
     }
 
     playerHp = Math.max(0, playerHp - bossDamage);
-    appendBattleLog(`Boss 行动：掷出 ${bossRoll}，对玩家造成 ${bossDamage} 点伤害。`);
+    appendBattleLog(`${currentBossCharacter.name} 行动：掷出 ${bossRoll}，对玩家造成 ${bossDamage} 点伤害。`);
     triggerImpact(playerCardEl);
     showDamageFloat(playerCardEl, bossDamage);
     updateHpBoard();
@@ -693,7 +766,7 @@ async function executePlayerAction(actionType, skillKey = null) {
     roundCountEl.textContent = roundCount;
 
     if (playerHp === 0) {
-      resultEl.textContent = `Boss 回合：Boss 掷出 ${bossRoll}，最终造成 ${bossDamage} 点伤害，你被击败了！`;
+      resultEl.textContent = `Boss 回合：${currentBossCharacter.name} 掷出 ${bossRoll}，最终造成 ${bossDamage} 点伤害，你被击败了！`;
       appendBattleLog('玩家被击败，战斗结束。');
       gameOver = true;
       updateActionButtons();
@@ -707,7 +780,7 @@ async function executePlayerAction(actionType, skillKey = null) {
     if (skillLog.length) {
       appendBattleLog(`附加效果：${skillLog.join('；')}。`);
     }
-    resultEl.textContent = `Boss 回合：Boss 掷出 ${bossRoll}，造成 ${bossDamage} 点伤害。轮到你行动。`;
+    resultEl.textContent = `Boss 回合：${currentBossCharacter.name} 掷出 ${bossRoll}，造成 ${bossDamage} 点伤害。轮到你行动。`;
   } finally {
     actionInProgress = false;
     updateActionButtons();
