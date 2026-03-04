@@ -267,6 +267,10 @@ let actionInProgress = false;
 let currentPlayerCharacter = null;
 let currentBossCharacter = null;
 
+function formatBossDisplayName(name, level = bossLevel) {
+  return `第 ${level} 个 Boss · ${name}`;
+}
+
 function formatLogTimestamp(date = new Date()) {
   return date.toLocaleTimeString('zh-CN', { hour12: false });
 }
@@ -509,9 +513,9 @@ function applyCharacterProfile(side, profile) {
     playerArtEl.src = profile.art;
     playerArtEl.alt = `玩家立绘：${profile.name}`;
   } else {
-    bossNameEl.textContent = profile.name;
+    bossNameEl.textContent = formatBossDisplayName(profile.name);
     bossArtEl.src = profile.art;
-    bossArtEl.alt = `Boss 立绘：${profile.name}`;
+    bossArtEl.alt = `第 ${bossLevel} 个 Boss 立绘：${profile.name}`;
   }
 }
 
@@ -712,6 +716,10 @@ async function executePlayerAction(actionType, skillKey = null) {
     await wait(680);
 
     if (bossHp === 0) {
+      const hpBeforeRecover = playerHp;
+      playerHp = Math.min(playerMaxHp, playerHp + 10);
+      const recoveredHp = playerHp - hpBeforeRecover;
+
       roundCount += 1;
       roundCountEl.textContent = roundCount;
       bossLevel += 1;
@@ -729,6 +737,7 @@ async function executePlayerAction(actionType, skillKey = null) {
       const gainedAbility = rollBossAbilityUnlock();
       refreshBossIdentity();
       appendBattleLog(`Boss 被击败并重生：${currentBossCharacter.name}（Lv.${bossLevel}，生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}）。`);
+      appendBattleLog(`胜利恢复：玩家回复 ${recoveredHp} 点生命。`);
       if (gainedAbility) {
         appendBattleLog(`Boss 获得新能力【${gainedAbility.name}】：${gainedAbility.description}`);
       }
