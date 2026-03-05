@@ -257,6 +257,28 @@ h1 { margin: 0; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 
   cursor: not-allowed;
 }
 
+.rarity-tag {
+  font-weight: 700;
+}
+
+.rarity-common { color: #f5f5f5; }
+.rarity-fine { color: #63d67a; }
+.rarity-rare { color: #5ea7ff; }
+.rarity-epic { color: #b77bff; }
+.rarity-legendary { color: #ffb24d; }
+
+.skill-item.rarity-common { border-color: rgba(245, 245, 245, 0.35); }
+.skill-item.rarity-fine { border-color: rgba(99, 214, 122, 0.6); }
+.skill-item.rarity-rare { border-color: rgba(94, 167, 255, 0.62); }
+.skill-item.rarity-epic { border-color: rgba(183, 123, 255, 0.62); }
+.skill-item.rarity-legendary { border-color: rgba(255, 178, 77, 0.65); }
+
+.secondary-button.rarity-common { border-color: rgba(245, 245, 245, 0.45); }
+.secondary-button.rarity-fine { border-color: rgba(99, 214, 122, 0.62); }
+.secondary-button.rarity-rare { border-color: rgba(94, 167, 255, 0.62); }
+.secondary-button.rarity-epic { border-color: rgba(183, 123, 255, 0.62); }
+.secondary-button.rarity-legendary { border-color: rgba(255, 178, 77, 0.66); }
+
 .roll-button,
 .secondary-button {
   border: 1px solid rgba(229, 201, 138, 0.45);
