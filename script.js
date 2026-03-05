@@ -46,6 +46,16 @@ const FACE_MAP = {
 const PLAYER_BASE_MAX_HP = 20;
 const PLAYER_MAX_SKILLS = 4;
 
+const RARITY_CONFIG = {
+  common: { name: '普通', colorClass: 'rarity-common', weight: 45 },
+  fine: { name: '精良', colorClass: 'rarity-fine', weight: 30 },
+  rare: { name: '稀有', colorClass: 'rarity-rare', weight: 15 },
+  epic: { name: '史诗', colorClass: 'rarity-epic', weight: 7 },
+  legendary: { name: '传说', colorClass: 'rarity-legendary', weight: 3 },
+};
+
+const RARITY_ORDER = Object.keys(RARITY_CONFIG);
+
 const PLAYER_NAMES = [
   '深海守护者',
   '稳重的鸵鸟',
@@ -116,21 +126,25 @@ const BOSS_EXTRA_ABILITIES = [
 const SKILL_CONFIG = {
   powerStrike: {
     name: '强力一击',
-    description: '本回合伤害 +3',
+    description: '本回合伤害提升',
     maxUses: 2,
     cooldown: 2,
-    applyPlayerAttack(baseDamage) {
-      return { damage: baseDamage + 3, note: '强力一击触发，伤害 +3' };
+    values: { common: 3, fine: 4, rare: 5, epic: 6, legendary: 8 },
+    applyPlayerAttack(baseDamage, skillState) {
+      const bonus = this.values[skillState.rarity];
+      return { damage: baseDamage + bonus, note: `强力一击触发，伤害 +${bonus}` };
     },
   },
   healPulse: {
     name: '治疗术',
-    description: '立刻回复 4 点生命',
+    description: '立刻回复生命',
     maxUses: 3,
     cooldown: 2,
-    applyOnUse() {
+    values: { common: 4, fine: 5, rare: 6, epic: 8, legendary: 10 },
+    applyOnUse(skillState) {
+      const healValue = this.values[skillState.rarity];
       const prev = playerHp;
-      playerHp = Math.min(playerMaxHp, playerHp + 4);
+      playerHp = Math.min(playerMaxHp, playerHp + healValue);
       const heal = playerHp - prev;
       updateHpBoard();
       return { note: `治疗术生效，回复 ${heal} 点生命` };
@@ -138,30 +152,37 @@ const SKILL_CONFIG = {
   },
   fury: {
     name: '狂怒',
-    description: '本回合伤害翻倍',
+    description: '本回合伤害倍率提升',
     maxUses: 1,
     cooldown: 3,
-    applyPlayerAttack(baseDamage) {
-      return { damage: baseDamage * 2, note: `狂怒触发，伤害 ${baseDamage}→${baseDamage * 2}` };
+    values: { common: 2, fine: 2.25, rare: 2.5, epic: 3, legendary: 3.5 },
+    applyPlayerAttack(baseDamage, skillState) {
+      const multiplier = this.values[skillState.rarity];
+      const finalDamage = Math.round(baseDamage * multiplier);
+      return { damage: finalDamage, note: `狂怒触发，伤害 ${baseDamage}→${finalDamage}` };
     },
   },
   whirlwind: {
     name: '旋风斩',
-    description: '本回合伤害 +5',
+    description: '本回合伤害提升',
     maxUses: 2,
     cooldown: 2,
-    applyPlayerAttack(baseDamage) {
-      return { damage: baseDamage + 5, note: '旋风斩触发，伤害 +5' };
+    values: { common: 5, fine: 6, rare: 7, epic: 8, legendary: 10 },
+    applyPlayerAttack(baseDamage, skillState) {
+      const bonus = this.values[skillState.rarity];
+      return { damage: baseDamage + bonus, note: `旋风斩触发，伤害 +${bonus}` };
     },
   },
   stoneShield: {
     name: '石肤护体',
-    description: '本轮受到伤害降低 75%',
+    description: '本轮受到伤害降低',
     maxUses: 2,
     cooldown: 2,
-    applyBossAttack(baseDamage) {
-      const reducedDamage = Math.max(0, Math.floor(baseDamage * 0.25));
-      return { damage: reducedDamage, note: `石肤护体生效，${baseDamage} → ${reducedDamage}` };
+    values: { common: 0.75, fine: 0.8, rare: 0.85, epic: 0.9, legendary: 0.95 },
+    applyBossAttack(baseDamage, skillState) {
+      const reductionRate = this.values[skillState.rarity];
+      const reducedDamage = Math.max(0, Math.floor(baseDamage * (1 - reductionRate)));
+      return { damage: reducedDamage, note: `石肤护体生效（减伤 ${Math.round(reductionRate * 100)}%），${baseDamage} → ${reducedDamage}` };
     },
   },
 };
@@ -172,7 +193,7 @@ function renderSkillGuideList() {
   skillGuideListEl.textContent = '';
   Object.values(SKILL_CONFIG).forEach((skill) => {
     const li = document.createElement('li');
-    li.textContent = `${skill.name}：${skill.description}（次数 ${skill.maxUses}，冷却 ${skill.cooldown} 回合）`;
+    li.textContent = `${skill.name}：${skill.description}（分普通/精良/稀有/史诗/传说，次数 ${skill.maxUses}，冷却 ${skill.cooldown} 回合）`;
     skillGuideListEl.appendChild(li);
   });
 }
@@ -181,29 +202,35 @@ const BOON_POOL = [
   {
     id: 'maxHp',
     name: '坚韧之心',
-    description: '生命上限 +4，并回复 4 点生命',
-    apply() {
-      playerMaxHp += 4;
-      playerHp = Math.min(playerMaxHp, playerHp + 4);
-      return '生命上限 +4，并回复 4 点生命';
+    description: '生命上限提升，并回复生命',
+    values: { common: 4, fine: 5, rare: 6, epic: 8, legendary: 10 },
+    apply(choice) {
+      const value = this.values[choice.rarity];
+      playerMaxHp += value;
+      playerHp = Math.min(playerMaxHp, playerHp + value);
+      return `生命上限 +${value}，并回复 ${value} 点生命`;
     },
   },
   {
     id: 'attackBonus',
     name: '锋刃祝福',
-    description: '永久攻击力 +1',
-    apply() {
-      passiveAttackBonus += 1;
-      return '永久攻击力 +1';
+    description: '永久攻击力提升',
+    values: { common: 1, fine: 2, rare: 3, epic: 4, legendary: 5 },
+    apply(choice) {
+      const value = this.values[choice.rarity];
+      passiveAttackBonus += value;
+      return `永久攻击力 +${value}`;
     },
   },
   {
     id: 'fortress',
     name: '守护符文',
-    description: '永久减伤 1 点（最低到 0）',
-    apply() {
-      passiveDamageReduction += 1;
-      return '永久减伤 +1';
+    description: '永久减伤提升（最低到 0）',
+    values: { common: 1, fine: 2, rare: 3, epic: 4, legendary: 5 },
+    apply(choice) {
+      const value = this.values[choice.rarity];
+      passiveDamageReduction += value;
+      return `永久减伤 +${value}`;
     },
   },
   {
@@ -221,26 +248,28 @@ const BOON_POOL = [
   {
     id: 'blood',
     name: '嗜血',
-    description: '普通攻击后额外回复 1 点生命',
-    apply() {
-      lifestealOnHit += 1;
-      return '普通攻击命中后回复 1 点生命';
+    description: '普通攻击后额外回复生命',
+    values: { common: 1, fine: 2, rare: 3, epic: 4, legendary: 5 },
+    apply(choice) {
+      const value = this.values[choice.rarity];
+      lifestealOnHit += value;
+      return `普通攻击命中后回复 ${value} 点生命`;
     },
   },
   {
     id: 'learnWhirlwind',
     name: '旋风斩',
     description: '新增技能：旋风斩（本回合伤害 +5）。',
-    apply() {
-      return unlockSkill('whirlwind');
+    apply(choice) {
+      return unlockSkill('whirlwind', choice.rarity);
     },
   },
   {
     id: 'learnStoneShield',
     name: '石肤护体',
     description: '新增技能：石肤护体（本轮减伤 75%）。',
-    apply() {
-      return unlockSkill('stoneShield');
+    apply(choice) {
+      return unlockSkill('stoneShield', choice.rarity);
     },
   },
 ];
@@ -275,9 +304,27 @@ function formatLogTimestamp(date = new Date()) {
   return date.toLocaleTimeString('zh-CN', { hour12: false });
 }
 
+function rollRarity() {
+  const total = RARITY_ORDER.reduce((sum, key) => sum + RARITY_CONFIG[key].weight, 0);
+  let point = Math.random() * total;
+  for (const rarity of RARITY_ORDER) {
+    point -= RARITY_CONFIG[rarity].weight;
+    if (point <= 0) return rarity;
+  }
+  return 'common';
+}
+
+function formatRarity(rarity) {
+  return RARITY_CONFIG[rarity]?.name ?? RARITY_CONFIG.common.name;
+}
+
+function createRarityTag(rarity) {
+  return `<span class="rarity-tag ${RARITY_CONFIG[rarity].colorClass}">[${RARITY_CONFIG[rarity].name}]</span>`;
+}
+
 function createSkillsState(skillKeys = Object.keys(SKILL_CONFIG)) {
   return Object.fromEntries(
-    skillKeys.map((key) => [key, { usesLeft: SKILL_CONFIG[key].maxUses, cooldownLeft: 0 }]),
+    skillKeys.map((key) => [key, { usesLeft: SKILL_CONFIG[key].maxUses, cooldownLeft: 0, rarity: 'common' }]),
   );
 }
 
@@ -361,7 +408,9 @@ function renderSkillSubmenu() {
     const status = getSkillStatusText(skillKey);
     const available = isSkillAvailable(skillKey) && !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0 && !actionInProgress;
     btn.disabled = !available;
-    btn.textContent = `${config.name}（剩余 ${skillsState[skillKey].usesLeft} · ${status}）`;
+    const rarity = skillsState[skillKey].rarity;
+    btn.classList.add(RARITY_CONFIG[rarity].colorClass);
+    btn.innerHTML = `${createRarityTag(rarity)} ${config.name}（剩余 ${skillsState[skillKey].usesLeft} · ${status}）`;
     skillSubmenuEl.appendChild(btn);
   });
 }
@@ -429,7 +478,7 @@ function renderBattleLogs() {
 
 function getRandomBoonChoices() {
   const shuffled = [...BOON_POOL].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 3);
+  return shuffled.slice(0, 3).map((boon) => ({ ...boon, rarity: rollRarity() }));
 }
 
 function renderBoonDialog() {
@@ -439,26 +488,31 @@ function renderBoonDialog() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'secondary-button';
-    btn.textContent = `${boon.name}：${boon.description}`;
+    btn.innerHTML = `${createRarityTag(boon.rarity)} ${boon.name}：${boon.description}`;
+    btn.classList.add(RARITY_CONFIG[boon.rarity].colorClass);
     btn.addEventListener('click', () => pickBoon(boon));
     item.appendChild(btn);
     boonListEl.appendChild(item);
   });
 }
 
-function unlockSkill(skillKey) {
+function unlockSkill(skillKey, rarity = 'common') {
   if (unlockedSkillKeys.includes(skillKey)) {
     skillsState[skillKey].usesLeft += 1;
     skillsState[skillKey].cooldownLeft = 0;
+    if (RARITY_ORDER.indexOf(rarity) > RARITY_ORDER.indexOf(skillsState[skillKey].rarity)) {
+      skillsState[skillKey].rarity = rarity;
+      return `${SKILL_CONFIG[skillKey].name} 已掌握，额外获得 1 次使用次数并升为${formatRarity(rarity)}`;
+    }
     return `${SKILL_CONFIG[skillKey].name} 已掌握，额外获得 1 次使用次数`;
   }
 
   unlockedSkillKeys.push(skillKey);
-  skillsState[skillKey] = { usesLeft: SKILL_CONFIG[skillKey].maxUses, cooldownLeft: 0 };
+  skillsState[skillKey] = { usesLeft: SKILL_CONFIG[skillKey].maxUses, cooldownLeft: 0, rarity };
   if (unlockedSkillKeys.length > PLAYER_MAX_SKILLS) {
     pendingForgetSkill = true;
   }
-  return `学会新技能【${SKILL_CONFIG[skillKey].name}】`;
+  return `学会新技能【${formatRarity(rarity)}·${SKILL_CONFIG[skillKey].name}】`;
 }
 
 function renderForgetSkillDialog() {
@@ -468,7 +522,9 @@ function renderForgetSkillDialog() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'secondary-button';
-    btn.textContent = `${SKILL_CONFIG[skillKey].name}：${SKILL_CONFIG[skillKey].description}`;
+    const rarity = skillsState[skillKey].rarity;
+    btn.classList.add(RARITY_CONFIG[rarity].colorClass);
+    btn.innerHTML = `${createRarityTag(rarity)} ${SKILL_CONFIG[skillKey].name}：${SKILL_CONFIG[skillKey].description}`;
     btn.addEventListener('click', () => forgetSkill(skillKey));
     item.appendChild(btn);
     forgetSkillListEl.appendChild(item);
@@ -530,13 +586,13 @@ function refreshBossIdentity() {
 }
 
 function pickBoon(boon) {
-  const effect = boon.apply();
+  const effect = boon.apply(boon);
   pendingBoonChoices = [];
   boonDialogEl.close();
   updateHpBoard();
   renderSkillSubmenu();
-  appendBattleLog(`你选择了正面效果【${boon.name}】：${effect}。`);
-  resultEl.textContent = `你选择了【${boon.name}】。继续行动吧！`;
+  appendBattleLog(`你选择了【${formatRarity(boon.rarity)}】正面效果【${boon.name}】：${effect}。`);
+  resultEl.textContent = `你选择了【${formatRarity(boon.rarity)}·${boon.name}】。继续行动吧！`;
   if (pendingForgetSkill) {
     renderForgetSkillDialog();
     forgetSkillDialogEl.showModal();
@@ -647,11 +703,11 @@ async function executePlayerAction(actionType, skillKey = null) {
       const skillConfig = consumeSkill(skillKey);
       actionName = `技能：${skillConfig.name}`;
       if (skillConfig.applyOnUse) {
-        const useResult = skillConfig.applyOnUse();
+        const useResult = skillConfig.applyOnUse(skillsState[skillKey]);
         if (useResult?.note) skillLog.push(useResult.note);
       }
       if (skillConfig.applyBossAttack) {
-        bossDamageReductionFn = skillConfig.applyBossAttack;
+        bossDamageReductionFn = (baseDamage) => skillConfig.applyBossAttack(baseDamage, skillsState[skillKey]);
       }
     }
 
@@ -671,7 +727,7 @@ async function executePlayerAction(actionType, skillKey = null) {
     if (actionType === 'skill' && skillKey) {
       const skillConfig = SKILL_CONFIG[skillKey];
       if (skillConfig.applyPlayerAttack) {
-        const skillAttackResult = skillConfig.applyPlayerAttack(playerDamage);
+        const skillAttackResult = skillConfig.applyPlayerAttack(playerDamage, skillsState[skillKey]);
         playerDamage = skillAttackResult.damage;
         if (skillAttackResult.note) skillLog.push(skillAttackResult.note);
       }
@@ -737,6 +793,7 @@ async function executePlayerAction(actionType, skillKey = null) {
       const gainedAbility = rollBossAbilityUnlock();
       refreshBossIdentity();
       appendBattleLog(`Boss 被击败并重生：${currentBossCharacter.name}（Lv.${bossLevel}，生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}）。`);
+      appendBattleLog(`本次掉落词条品级：${pendingBoonChoices.map((boon) => `${boon.name}-${formatRarity(boon.rarity)}`).join('、')}。`);
       appendBattleLog(`胜利恢复：玩家回复 ${recoveredHp} 点生命。`);
       if (gainedAbility) {
         appendBattleLog(`Boss 获得新能力【${gainedAbility.name}】：${gainedAbility.description}`);
