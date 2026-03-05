@@ -293,6 +293,7 @@ let pendingForgetSkill = false;
 let bossLevel = 1;
 let bossExtraAbilities = [];
 let actionInProgress = false;
+let comboBonus = 0;
 let currentPlayerCharacter = null;
 let currentBossCharacter = null;
 
@@ -618,6 +619,7 @@ function resetGame() {
   lifestealOnHit = 0;
   pendingForgetSkill = false;
   actionInProgress = false;
+  comboBonus = 0;
   bossLevel = 1;
   bossExtraAbilities = [];
 
@@ -724,6 +726,13 @@ async function executePlayerAction(actionType, skillKey = null) {
     const playerRoll = await animateDiceRoll(playerDiceEl, '玩家', 6, 'player');
     let playerDamage = playerRoll + passiveAttackBonus;
 
+    if ((actionType === 'attack' || actionType === 'skill') && comboBonus > 0) {
+      const boostedDamage = Math.round(playerDamage * (1 + comboBonus));
+      skillLog.push(`连击加成生效，伤害 ${playerDamage} → ${boostedDamage}（+${comboBonus.toFixed(1)}）`);
+      playerDamage = boostedDamage;
+      comboBonus = 0;
+    }
+
     if (actionType === 'skill' && skillKey) {
       const skillConfig = SKILL_CONFIG[skillKey];
       if (skillConfig.applyPlayerAttack) {
@@ -766,6 +775,11 @@ async function executePlayerAction(actionType, skillKey = null) {
         skillLog.push(`嗜血触发，回复 ${healed} 点生命`);
         updateHpBoard();
       }
+    }
+
+    if (actionType === 'attack') {
+      comboBonus += 0.2;
+      skillLog.push(`普通攻击积累连击加成，下次技能或攻击伤害 +${comboBonus.toFixed(1)}`);
     }
 
     setTurnFocus(null);
