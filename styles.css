@@ -392,7 +392,7 @@ h1 { margin: 0; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 
 }
 
 @media (max-width: 760px) {
-  body { min-height: 100dvh; padding: 0.45rem; }
+  body { min-height: 100dvh; padding: 0.45rem; overflow: auto; }
   .game-container { max-height: calc(100dvh - 0.9rem); padding: 0.75rem; gap: 0.65rem; }
   h1 { font-size: 1.6rem; }
   .subtitle { display: none; }
@@ -405,6 +405,18 @@ h1 { margin: 0; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 
   .skill-submenu { position: static; margin-top: 0.3rem; }
   .roll-button, .secondary-button { padding: 0.48rem 0.8rem; font-size: 0.84rem; }
   .help-button { right: 0.5rem; bottom: 0.5rem; }
+}
+
+@media (max-height: 760px) {
+  .game-container {
+    max-height: none;
+  }
+
+  .battle-stage {
+    grid-template-rows: auto auto auto;
+    align-content: start;
+    overflow-y: auto;
+  }
 }
 
 @media (max-width: 420px) {
