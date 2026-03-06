@@ -45,6 +45,8 @@ const FACE_MAP = {
 
 const PLAYER_BASE_MAX_HP = 20;
 const PLAYER_MAX_SKILLS = 4;
+const BASE_BOON_CHOICE_COUNT = 4;
+const MAX_BOON_CHOICE_COUNT = 6;
 
 const RARITY_CONFIG = {
   common: { name: '普通', colorClass: 'rarity-common', weight: 45 },
@@ -257,6 +259,33 @@ const BOON_POOL = [
     },
   },
   {
+    id: 'berserkerMark',
+    name: '狂战印记',
+    description: '【狂战套装】普通攻击额外 +2 伤害。',
+    apply() {
+      buildTraitSet.add(this.id);
+      return '获得套装词条：狂战印记（普通攻击额外 +2 伤害）';
+    },
+  },
+  {
+    id: 'slayerInstinct',
+    name: '屠戮本能',
+    description: '【狂战套装】使用技能时伤害额外 +2。',
+    apply() {
+      buildTraitSet.add(this.id);
+      return '获得套装词条：屠戮本能（技能伤害额外 +2）';
+    },
+  },
+  {
+    id: 'warCry',
+    name: '战吼',
+    description: '【狂战套装】每次造成伤害后回复 1 点生命。',
+    apply() {
+      buildTraitSet.add(this.id);
+      return '获得套装词条：战吼（每次造成伤害后回复 1 点生命）';
+    },
+  },
+  {
     id: 'learnWhirlwind',
     name: '旋风斩',
     description: '新增技能：旋风斩（本回合伤害 +5）。',
@@ -296,6 +325,13 @@ let actionInProgress = false;
 let comboBonus = 0;
 let currentPlayerCharacter = null;
 let currentBossCharacter = null;
+let buildTraitSet = new Set();
+
+const BERSERKER_SET = ['berserkerMark', 'slayerInstinct', 'warCry'];
+
+function hasBerserkerSetBonus() {
+  return BERSERKER_SET.every((traitId) => buildTraitSet.has(traitId));
+}
 
 function formatBossDisplayName(name, level = bossLevel) {
   return `第 ${level} 个 Boss · ${name}`;
@@ -477,9 +513,14 @@ function renderBattleLogs() {
   });
 }
 
+function getCurrentBoonChoiceCount() {
+  const bonusChoices = Math.floor((bossLevel - 1) / 3);
+  return Math.min(MAX_BOON_CHOICE_COUNT, BASE_BOON_CHOICE_COUNT + bonusChoices);
+}
+
 function getRandomBoonChoices() {
   const shuffled = [...BOON_POOL].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 3).map((boon) => ({ ...boon, rarity: rollRarity() }));
+  return shuffled.slice(0, getCurrentBoonChoiceCount()).map((boon) => ({ ...boon, rarity: rollRarity() }));
 }
 
 function renderBoonDialog() {
@@ -588,11 +629,15 @@ function refreshBossIdentity() {
 
 function pickBoon(boon) {
   const effect = boon.apply(boon);
+  const hasSetBonus = hasBerserkerSetBonus();
   pendingBoonChoices = [];
   boonDialogEl.close();
   updateHpBoard();
   renderSkillSubmenu();
   appendBattleLog(`你选择了【${formatRarity(boon.rarity)}】正面效果【${boon.name}】：${effect}。`);
+  if (hasSetBonus) {
+    appendBattleLog('你已集齐【狂战套装】：普通攻击额外 +2、技能额外 +2，每次造成伤害后回复 1 点生命。');
+  }
   resultEl.textContent = `你选择了【${formatRarity(boon.rarity)}·${boon.name}】。继续行动吧！`;
   if (pendingForgetSkill) {
     renderForgetSkillDialog();
@@ -622,6 +667,7 @@ function resetGame() {
   comboBonus = 0;
   bossLevel = 1;
   bossExtraAbilities = [];
+  buildTraitSet = new Set();
 
   refreshPlayerIdentity();
   refreshBossIdentity();
@@ -742,6 +788,16 @@ async function executePlayerAction(actionType, skillKey = null) {
       }
     }
 
+    if (actionType === 'attack' && buildTraitSet.has('berserkerMark')) {
+      playerDamage += 2;
+      skillLog.push('狂战印记生效：普通攻击额外 +2 伤害');
+    }
+
+    if (actionType === 'skill' && buildTraitSet.has('slayerInstinct')) {
+      playerDamage += 2;
+      skillLog.push('屠戮本能生效：技能伤害额外 +2');
+    }
+
     bossExtraAbilities.forEach((ability) => {
       if (ability.applyOnBossDamaged) {
         const reduced = ability.applyOnBossDamaged(playerDamage);
@@ -773,6 +829,16 @@ async function executePlayerAction(actionType, skillKey = null) {
       const healed = playerHp - prev;
       if (healed > 0) {
         skillLog.push(`嗜血触发，回复 ${healed} 点生命`);
+        updateHpBoard();
+      }
+    }
+
+    if (buildTraitSet.has('warCry') && playerDamage > 0) {
+      const prevHp = playerHp;
+      playerHp = Math.min(playerMaxHp, playerHp + 1);
+      const healed = playerHp - prevHp;
+      if (healed > 0) {
+        skillLog.push('战吼生效：造成伤害后回复 1 点生命');
         updateHpBoard();
       }
     }
@@ -812,7 +878,7 @@ async function executePlayerAction(actionType, skillKey = null) {
       if (gainedAbility) {
         appendBattleLog(`Boss 获得新能力【${gainedAbility.name}】：${gainedAbility.description}`);
       }
-      resultEl.textContent = `你击败了 Boss！新敌人【${currentBossCharacter.name}】已登场，请先从 3 个正面效果中选择 1 个。`;
+      resultEl.textContent = `你击败了 Boss！新敌人【${currentBossCharacter.name}】已登场，请先从 ${pendingBoonChoices.length} 个正面效果中选择 1 个。`;
       if (skillLog.length) appendBattleLog(`附加效果：${skillLog.join('；')}。`);
       updateActionButtons();
       return;
