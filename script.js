@@ -47,6 +47,7 @@ const PLAYER_BASE_MAX_HP = 20;
 const PLAYER_MAX_SKILLS = 4;
 const BASE_BOON_CHOICE_COUNT = 4;
 const MAX_BOON_CHOICE_COUNT = 6;
+const BOSS_MAX_ATTACK_DICE = 14;
 
 const RARITY_CONFIG = {
   common: { name: '普通', colorClass: 'rarity-common', weight: 45 },
@@ -301,6 +302,53 @@ const BOON_POOL = [
       return unlockSkill('stoneShield', choice.rarity);
     },
   },
+  {
+    id: 'comboEngine',
+    name: '追击引擎',
+    description: '普通攻击的连击积累额外提高。',
+    values: { common: 0.2, fine: 0.3, rare: 0.4, epic: 0.5, legendary: 0.6 },
+    apply(choice) {
+      const value = this.values[choice.rarity];
+      comboGrowthBonus += value;
+      return `普通攻击额外连击积累 +${value.toFixed(1)}`;
+    },
+  },
+  {
+    id: 'arcaneBattery',
+    name: '奥术蓄电池',
+    description: '使用技能后回复生命，并有概率恢复技能次数。',
+    values: {
+      common: { heal: 1, chance: 0.2 },
+      fine: { heal: 1, chance: 0.25 },
+      rare: { heal: 2, chance: 0.3 },
+      epic: { heal: 2, chance: 0.4 },
+      legendary: { heal: 3, chance: 0.5 },
+    },
+    apply(choice) {
+      const value = this.values[choice.rarity];
+      skillCycleHeal += value.heal;
+      skillCycleRecoverChance += value.chance;
+      return `技能后回复 ${value.heal} 点生命，且 ${Math.round(value.chance * 100)}% 概率恢复 1 次随机技能次数`;
+    },
+  },
+  {
+    id: 'ironReflex',
+    name: '铁壁反击',
+    description: '防御后反击 Boss 并附带少量治疗。',
+    values: {
+      common: { dmg: 1, heal: 1 },
+      fine: { dmg: 2, heal: 1 },
+      rare: { dmg: 2, heal: 2 },
+      epic: { dmg: 3, heal: 2 },
+      legendary: { dmg: 4, heal: 2 },
+    },
+    apply(choice) {
+      const value = this.values[choice.rarity];
+      defendCounterDamage += value.dmg;
+      defendHealBonus += value.heal;
+      return `防御后反击伤害 +${value.dmg}，并回复 ${value.heal} 点生命`;
+    },
+  },
 ];
 
 let roundCount = 0;
@@ -323,6 +371,11 @@ let bossLevel = 1;
 let bossExtraAbilities = [];
 let actionInProgress = false;
 let comboBonus = 0;
+let comboGrowthBonus = 0;
+let skillCycleHeal = 0;
+let skillCycleRecoverChance = 0;
+let defendCounterDamage = 0;
+let defendHealBonus = 0;
 let currentPlayerCharacter = null;
 let currentBossCharacter = null;
 let buildTraitSet = new Set();
@@ -518,6 +571,17 @@ function getCurrentBoonChoiceCount() {
   return Math.min(MAX_BOON_CHOICE_COUNT, BASE_BOON_CHOICE_COUNT + bonusChoices);
 }
 
+function calculateBossAttackMax(level) {
+  const growth = Math.floor((level - 1) / 2);
+  return Math.min(BOSS_MAX_ATTACK_DICE, 6 + growth);
+}
+
+function calculateBossMaxHp(level) {
+  if (level <= 1) return PLAYER_BASE_MAX_HP;
+  const growth = level - 1;
+  return PLAYER_BASE_MAX_HP + growth * 6 + Math.floor(growth / 3) * 2;
+}
+
 function getRandomBoonChoices() {
   const shuffled = [...BOON_POOL].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, getCurrentBoonChoiceCount()).map((boon) => ({ ...boon, rarity: rollRarity() }));
@@ -584,7 +648,7 @@ function forgetSkill(skillKey) {
 }
 
 function rollBossAbilityUnlock() {
-  if (bossLevel % 4 !== 0) return null;
+  if (bossLevel < 6 || bossLevel % 5 !== 0) return null;
   const remaining = BOSS_EXTRA_ABILITIES.filter((a) => !bossExtraAbilities.some((owned) => owned.id === a.id));
   if (remaining.length === 0) return null;
   const gained = remaining[Math.floor(Math.random() * remaining.length)];
@@ -665,6 +729,11 @@ function resetGame() {
   pendingForgetSkill = false;
   actionInProgress = false;
   comboBonus = 0;
+  comboGrowthBonus = 0;
+  skillCycleHeal = 0;
+  skillCycleRecoverChance = 0;
+  defendCounterDamage = 0;
+  defendHealBonus = 0;
   bossLevel = 1;
   bossExtraAbilities = [];
   buildTraitSet = new Set();
@@ -844,8 +913,25 @@ async function executePlayerAction(actionType, skillKey = null) {
     }
 
     if (actionType === 'attack') {
-      comboBonus += 0.2;
-      skillLog.push(`普通攻击积累连击加成，下次技能或攻击伤害 +${comboBonus.toFixed(1)}`);
+      const comboGrowth = 0.2 + comboGrowthBonus;
+      comboBonus += comboGrowth;
+      skillLog.push(`普通攻击积累连击加成，下次技能或攻击伤害 +${comboBonus.toFixed(1)}（本次 +${comboGrowth.toFixed(1)}）`);
+    }
+
+    if (actionType === 'skill' && skillCycleHeal > 0) {
+      const prevHp = playerHp;
+      playerHp = Math.min(playerMaxHp, playerHp + skillCycleHeal);
+      const healed = playerHp - prevHp;
+      if (healed > 0) {
+        skillLog.push(`奥术蓄电池生效：回复 ${healed} 点生命`);
+        updateHpBoard();
+      }
+      const recoverChance = Math.min(0.9, skillCycleRecoverChance);
+      if (Math.random() < recoverChance) {
+        const randomKey = unlockedSkillKeys[Math.floor(Math.random() * unlockedSkillKeys.length)];
+        skillsState[randomKey].usesLeft += 1;
+        skillLog.push(`奥术蓄电池触发：${SKILL_CONFIG[randomKey].name} 次数 +1`);
+      }
     }
 
     setTurnFocus(null);
@@ -859,8 +945,8 @@ async function executePlayerAction(actionType, skillKey = null) {
       roundCount += 1;
       roundCountEl.textContent = roundCount;
       bossLevel += 1;
-      bossAttackMax += 1;
-      bossMaxHp += 10;
+      bossAttackMax = calculateBossAttackMax(bossLevel);
+      bossMaxHp = calculateBossMaxHp(bossLevel);
       bossHp = bossMaxHp;
       tickSkillCooldowns();
       updateHpBoard();
@@ -908,6 +994,61 @@ async function executePlayerAction(actionType, skillKey = null) {
       const reducedResult = bossDamageReductionFn(bossDamage);
       bossDamage = reducedResult.damage;
       if (reducedResult.note) skillLog.push(reducedResult.note);
+    }
+
+    if (actionType === 'defend' && defendCounterDamage > 0) {
+      bossHp = Math.max(0, bossHp - defendCounterDamage);
+      skillLog.push(`铁壁反击生效：Boss 受到 ${defendCounterDamage} 点反击伤害`);
+      triggerImpact(bossCardEl);
+      showDamageFloat(bossCardEl, defendCounterDamage);
+      updateHpBoard();
+
+      if (defendHealBonus > 0) {
+        const prevHp = playerHp;
+        playerHp = Math.min(playerMaxHp, playerHp + defendHealBonus);
+        const healed = playerHp - prevHp;
+        if (healed > 0) {
+          skillLog.push(`铁壁反击追加效果：回复 ${healed} 点生命`);
+          updateHpBoard();
+        }
+      }
+
+      if (bossHp === 0) {
+        appendBattleLog(`铁壁反击完成斩杀：Boss 受到 ${defendCounterDamage} 点反击伤害后倒下。`);
+      }
+    }
+
+    if (bossHp === 0) {
+      const hpBeforeRecover = playerHp;
+      playerHp = Math.min(playerMaxHp, playerHp + 10);
+      const recoveredHp = playerHp - hpBeforeRecover;
+
+      roundCount += 1;
+      roundCountEl.textContent = roundCount;
+      bossLevel += 1;
+      bossAttackMax = calculateBossAttackMax(bossLevel);
+      bossMaxHp = calculateBossMaxHp(bossLevel);
+      bossHp = bossMaxHp;
+      tickSkillCooldowns();
+      updateHpBoard();
+      updateBossPowerBoard();
+
+      pendingBoonChoices = getRandomBoonChoices();
+      renderBoonDialog();
+      boonDialogEl.showModal();
+
+      const gainedAbility = rollBossAbilityUnlock();
+      refreshBossIdentity();
+      appendBattleLog(`Boss 被击败并重生：${currentBossCharacter.name}（Lv.${bossLevel}，生命上限 ${bossMaxHp}，攻击骰 D${bossAttackMax}）。`);
+      appendBattleLog(`本次掉落词条品级：${pendingBoonChoices.map((boon) => `${boon.name}-${formatRarity(boon.rarity)}`).join('、')}。`);
+      appendBattleLog(`胜利恢复：玩家回复 ${recoveredHp} 点生命。`);
+      if (gainedAbility) {
+        appendBattleLog(`Boss 获得新能力【${gainedAbility.name}】：${gainedAbility.description}`);
+      }
+      resultEl.textContent = `你击败了 Boss！新敌人【${currentBossCharacter.name}】已登场，请先从 ${pendingBoonChoices.length} 个正面效果中选择 1 个。`;
+      if (skillLog.length) appendBattleLog(`附加效果：${skillLog.join('；')}。`);
+      updateActionButtons();
+      return;
     }
 
     playerHp = Math.max(0, playerHp - bossDamage);
