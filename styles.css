@@ -152,6 +152,27 @@ h1 { margin: 0; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 
   transform: translateY(0);
 }
 
+.mode-buttons {
+  display: grid;
+  gap: 0.7rem;
+  justify-items: center;
+}
+
+.mode-buttons .start-button {
+  width: min(320px, 100%);
+}
+
+.mode-locked {
+  background: linear-gradient(180deg, #e2c794 0%, #b48d57 100%);
+}
+
+.mode-hint {
+  min-height: 1.3rem;
+  margin: 0.9rem 0 0;
+  color: #ffd7a5;
+  font-size: 0.95rem;
+}
+
 @media (max-width: 640px) {
   .home-card {
     border-radius: 18px;

@@ -1,6 +1,9 @@
 const homeScreenEl = document.getElementById('homeScreen');
 const gameContainerEl = document.getElementById('gameContainer');
-const startGameButtonEl = document.getElementById('startGameButton');
+const singlePveButtonEl = document.getElementById('singlePveButton');
+const doublePveButtonEl = document.getElementById('doublePveButton');
+const pvpButtonEl = document.getElementById('pvpButton');
+const modeHintEl = document.getElementById('modeHint');
 const resultEl = document.getElementById('result');
 const attackButtonEl = document.getElementById('attackButton');
 const defendButtonEl = document.getElementById('defendButton');
@@ -703,7 +706,13 @@ function pickBoon(boon) {
   updateActionButtons();
 }
 
+
+function showModeLockedHint(modeName) {
+  modeHintEl.textContent = `【${modeName}】暂未开发完成`;
+}
+
 function enterGame() {
+  modeHintEl.textContent = '';
   homeScreenEl.classList.add('hidden');
   gameContainerEl.classList.remove('hidden');
   gameContainerEl.setAttribute('aria-hidden', 'false');
@@ -1089,7 +1098,9 @@ async function executePlayerAction(actionType, skillKey = null) {
 setupDice(playerDiceEl);
 setupDice(bossDiceEl);
 
-startGameButtonEl.addEventListener('click', enterGame);
+singlePveButtonEl.addEventListener('click', enterGame);
+doublePveButtonEl.addEventListener('click', () => showModeLockedHint('双人 PVE'));
+pvpButtonEl.addEventListener('click', () => showModeLockedHint('PVP'));
 
 attackButtonEl.addEventListener('click', () => executePlayerAction('attack'));
 defendButtonEl.addEventListener('click', () => executePlayerAction('defend'));

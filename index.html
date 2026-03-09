@@ -18,7 +18,12 @@
         <span>爽快连击</span>
         <span>持续成长</span>
       </div>
-      <button id="startGameButton" class="start-button" type="button">开始游戏</button>
+      <div class="mode-buttons" role="group" aria-label="游戏模式选择">
+        <button id="singlePveButton" class="start-button" type="button">单人 PVE</button>
+        <button id="doublePveButton" class="start-button mode-locked" type="button">双人 PVE</button>
+        <button id="pvpButton" class="start-button mode-locked" type="button">PVP</button>
+      </div>
+      <p id="modeHint" class="mode-hint" aria-live="polite"></p>
     </div>
   </section>
 
