@@ -7,7 +7,22 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="game-container">
+  <section id="homeScreen" class="home-screen" aria-label="游戏首页">
+    <div class="home-hero-glow" aria-hidden="true"></div>
+    <div class="home-card">
+      <p class="home-kicker">RogueLike Dice Adventure</p>
+      <h1 class="home-title">⚔️ 掷骰子打 Boss</h1>
+      <p class="home-description">每一局都有全新词条、技能组合与 Boss 强化。掷出你的命运点数，开启一场高风险高回报的冒险。</p>
+      <div class="home-highlights" aria-hidden="true">
+        <span>随机词条</span>
+        <span>爽快连击</span>
+        <span>持续成长</span>
+      </div>
+      <button id="startGameButton" class="start-button" type="button">开始游戏</button>
+    </div>
+  </section>
+
+  <main id="gameContainer" class="game-container hidden" aria-hidden="true">
     <header class="game-header">
       <h1>⚔️ 掷骰子打 Boss</h1>
     </header>
@@ -67,7 +82,7 @@
     </section>
   </main>
 
-  <button id="helpButton" class="help-button" type="button" aria-haspopup="dialog" aria-controls="rulesDialog">玩法说明</button>
+  <button id="helpButton" class="help-button hidden" type="button" aria-haspopup="dialog" aria-controls="rulesDialog">玩法说明</button>
   <dialog id="rulesDialog" class="rules-dialog" aria-label="玩法说明">
     <h2>玩法说明</h2>
     <ul>
