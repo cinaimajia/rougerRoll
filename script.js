@@ -28,7 +28,6 @@ const logButtonEl = document.getElementById('logButton');
 const battleLogDialogEl = document.getElementById('battleLogDialog');
 const battleLogListEl = document.getElementById('battleLogList');
 const closeBattleLogButtonEl = document.getElementById('closeBattleLogButton');
-const skillGuideListEl = document.getElementById('skillGuideList');
 const boonDialogEl = document.getElementById('boonDialog');
 const boonListEl = document.getElementById('boonList');
 const forgetSkillDialogEl = document.getElementById('forgetSkillDialog');
@@ -191,16 +190,6 @@ const SKILL_CONFIG = {
 };
 
 
-function renderSkillGuideList() {
-  if (!skillGuideListEl) return;
-  skillGuideListEl.textContent = '';
-  Object.values(SKILL_CONFIG).forEach((skill) => {
-    const li = document.createElement('li');
-    li.textContent = `${skill.name}：${skill.description}（分普通/精良/稀有/史诗/传说，次数 ${skill.maxUses}，冷却 ${skill.cooldown} 回合）`;
-    skillGuideListEl.appendChild(li);
-  });
-}
-
 const BOON_POOL = [
   {
     id: 'maxHp',
@@ -262,7 +251,7 @@ const BOON_POOL = [
   {
     id: 'berserkerMark',
     name: '狂战印记',
-    description: '【狂战套装】普通攻击额外 +2 伤害。',
+    description: '神秘词条之一。',
     apply() {
       buildTraitSet.add(this.id);
       return '获得套装词条：狂战印记（普通攻击额外 +2 伤害）';
@@ -271,7 +260,7 @@ const BOON_POOL = [
   {
     id: 'slayerInstinct',
     name: '屠戮本能',
-    description: '【狂战套装】使用技能时伤害额外 +2。',
+    description: '神秘词条之一。',
     apply() {
       buildTraitSet.add(this.id);
       return '获得套装词条：屠戮本能（技能伤害额外 +2）';
@@ -280,7 +269,7 @@ const BOON_POOL = [
   {
     id: 'warCry',
     name: '战吼',
-    description: '【狂战套装】每次造成伤害后回复 1 点生命。',
+    description: '神秘词条之一。',
     apply() {
       buildTraitSet.add(this.id);
       return '获得套装词条：战吼（每次造成伤害后回复 1 点生命）';
@@ -500,7 +489,7 @@ function renderSkillSubmenu() {
     btn.disabled = !available;
     const rarity = skillsState[skillKey].rarity;
     btn.classList.add(RARITY_CONFIG[rarity].colorClass);
-    btn.innerHTML = `${createRarityTag(rarity)} ${config.name}（剩余 ${skillsState[skillKey].usesLeft} · ${status}）`;
+    btn.innerHTML = `${createRarityTag(rarity)} ${config.name}：${config.description}（剩余 ${skillsState[skillKey].usesLeft} · ${status}）`;
     skillSubmenuEl.appendChild(btn);
   });
 }
@@ -1088,7 +1077,6 @@ async function executePlayerAction(actionType, skillKey = null) {
 
 setupDice(playerDiceEl);
 setupDice(bossDiceEl);
-renderSkillGuideList();
 resetGame();
 
 attackButtonEl.addEventListener('click', () => executePlayerAction('attack'));
