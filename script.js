@@ -1,3 +1,6 @@
+const homeScreenEl = document.getElementById('homeScreen');
+const gameContainerEl = document.getElementById('gameContainer');
+const startGameButtonEl = document.getElementById('startGameButton');
 const resultEl = document.getElementById('result');
 const attackButtonEl = document.getElementById('attackButton');
 const defendButtonEl = document.getElementById('defendButton');
@@ -700,6 +703,14 @@ function pickBoon(boon) {
   updateActionButtons();
 }
 
+function enterGame() {
+  homeScreenEl.classList.add('hidden');
+  gameContainerEl.classList.remove('hidden');
+  gameContainerEl.setAttribute('aria-hidden', 'false');
+  helpButtonEl.classList.remove('hidden');
+  resetGame();
+}
+
 function resetGame() {
   roundCount = 0;
   playerMaxHp = PLAYER_BASE_MAX_HP;
@@ -1077,7 +1088,8 @@ async function executePlayerAction(actionType, skillKey = null) {
 
 setupDice(playerDiceEl);
 setupDice(bossDiceEl);
-resetGame();
+
+startGameButtonEl.addEventListener('click', enterGame);
 
 attackButtonEl.addEventListener('click', () => executePlayerAction('attack'));
 defendButtonEl.addEventListener('click', () => executePlayerAction('defend'));
