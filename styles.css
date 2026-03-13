@@ -572,3 +572,27 @@ h1 { margin: 0; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 
   .pip { width: 8px; height: 8px; }
   .skill-item { font-size: 0.76rem; }
 }
+
+
+.pvp-lobby {
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(229, 201, 138, 0.35);
+  background: rgba(37, 24, 17, 0.78);
+}
+
+.pvp-lobby p {
+  margin: 0.35rem 0;
+  color: #f0d9ac;
+}
+
+.pvp-link-input {
+  width: min(100%, 460px);
+  border-radius: 8px;
+  border: 1px solid rgba(229, 201, 138, 0.45);
+  background: rgba(18, 11, 8, 0.9);
+  color: #f8e7c4;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.55rem;
+}
