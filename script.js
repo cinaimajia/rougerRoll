@@ -4,6 +4,10 @@ const singlePveButtonEl = document.getElementById('singlePveButton');
 const doublePveButtonEl = document.getElementById('doublePveButton');
 const pvpButtonEl = document.getElementById('pvpButton');
 const modeHintEl = document.getElementById('modeHint');
+const pvpLobbyEl = document.getElementById('pvpLobby');
+const pvpRoomIdEl = document.getElementById('pvpRoomId');
+const pvpInviteLinkEl = document.getElementById('pvpInviteLink');
+const copyInviteButtonEl = document.getElementById('copyInviteButton');
 const resultEl = document.getElementById('result');
 const attackButtonEl = document.getElementById('attackButton');
 const defendButtonEl = document.getElementById('defendButton');
@@ -11,6 +15,9 @@ const skillButtonEl = document.getElementById('skillButton');
 const skillSubmenuEl = document.getElementById('skillSubmenu');
 const restartButtonEl = document.getElementById('restartButton');
 const roundCountEl = document.getElementById('roundCount');
+const pvpScoreEl = document.getElementById('pvpScore');
+const pvpP1WinsEl = document.getElementById('pvpP1Wins');
+const pvpP2WinsEl = document.getElementById('pvpP2Wins');
 const playerHpEl = document.getElementById('playerHp');
 const bossHpEl = document.getElementById('bossHp');
 const bossMaxHpEl = document.getElementById('bossMaxHp');
@@ -375,6 +382,139 @@ let currentPlayerCharacter = null;
 let currentBossCharacter = null;
 let buildTraitSet = new Set();
 
+let currentMode = 'pve';
+let pvpRoundWins = { p1: 0, p2: 0 };
+let pvpStats = createPvpStats();
+let pvpRoomId = '';
+let pvpLocalSide = 'p1';
+
+const PVP_WIN_TARGET = 2;
+const PVP_SIDE_LABEL = { p1: '玩家1', p2: '玩家2' };
+const PVP_BOON_POOL = [
+  { id: 'pvpAttack', name: '嗜战怒火', apply: (target) => { pvpStats[target].attackBonus += 1; return '攻击力 +1'; } },
+  { id: 'pvpShield', name: '坚守壁垒', apply: (target) => { pvpStats[target].damageReduction += 1; return '减伤 +1'; } },
+  { id: 'pvpBlood', name: '吸能虹吸', apply: (target) => { pvpStats[target].lifesteal += 1; return '造成伤害后回复 1 点生命'; } },
+  { id: 'pvpVital', name: '生命灌注', apply: (target) => { pvpStats[target].maxHpBonus += 4; return '生命上限 +4'; } },
+];
+
+
+function createPvpStats() {
+  return {
+    p1: { attackBonus: 0, damageReduction: 0, lifesteal: 0, maxHpBonus: 0 },
+    p2: { attackBonus: 0, damageReduction: 0, lifesteal: 0, maxHpBonus: 0 },
+  };
+}
+
+function getPvpSideFromActiveTurn() {
+  return activeTurn === 'boss' ? 'p2' : 'p1';
+}
+
+function getOppositePvpSide(side) {
+  return side === 'p1' ? 'p2' : 'p1';
+}
+
+function getPvpDisplayName(side) {
+  return PVP_SIDE_LABEL[side];
+}
+
+function updatePvpScoreBoard() {
+  pvpP1WinsEl.textContent = pvpRoundWins.p1;
+  pvpP2WinsEl.textContent = pvpRoundWins.p2;
+}
+
+function applyPvpRoundHpReset() {
+  playerMaxHp = PLAYER_BASE_MAX_HP + pvpStats.p1.maxHpBonus;
+  bossMaxHp = PLAYER_BASE_MAX_HP + pvpStats.p2.maxHpBonus;
+  playerHp = playerMaxHp;
+  bossHp = bossMaxHp;
+  updateHpBoard();
+}
+
+function grantRandomPvpBoon(loserSide) {
+  const boon = PVP_BOON_POOL[Math.floor(Math.random() * PVP_BOON_POOL.length)];
+  const effect = boon.apply(loserSide);
+  appendBattleLog(`${getPvpDisplayName(loserSide)} 败者增益【${boon.name}】生效：${effect}。`);
+  applyPvpRoundHpReset();
+}
+
+function updatePvpInviteUi() {
+  const joinUrl = new URL(window.location.href);
+  joinUrl.searchParams.set('mode', 'pvp');
+  joinUrl.searchParams.set('room', pvpRoomId);
+  joinUrl.searchParams.set('side', 'p2');
+  pvpRoomIdEl.textContent = pvpRoomId;
+  pvpInviteLinkEl.value = joinUrl.toString();
+}
+
+async function executePvpAction() {
+  if (gameOver || actionInProgress) return;
+  const attackerSide = getPvpSideFromActiveTurn();
+  const defenderSide = getOppositePvpSide(attackerSide);
+  const isP1Attacking = attackerSide === 'p1';
+
+  actionInProgress = true;
+  updateActionButtons();
+
+  try {
+    setTurnFocus(isP1Attacking ? 'player' : 'boss');
+    await wait(280);
+
+    const roll = await animateDiceRoll(isP1Attacking ? playerDiceEl : bossDiceEl, getPvpDisplayName(attackerSide), 6, isP1Attacking ? 'player' : 'boss');
+    let damage = Math.max(0, roll + pvpStats[attackerSide].attackBonus - pvpStats[defenderSide].damageReduction);
+
+    if (defenderSide === 'p1') {
+      playerHp = Math.max(0, playerHp - damage);
+      triggerImpact(playerCardEl);
+      showDamageFloat(playerCardEl, damage);
+    } else {
+      bossHp = Math.max(0, bossHp - damage);
+      triggerImpact(bossCardEl);
+      showDamageFloat(bossCardEl, damage);
+    }
+
+    if (pvpStats[attackerSide].lifesteal > 0 && damage > 0) {
+      if (attackerSide === 'p1') {
+        playerHp = Math.min(playerMaxHp, playerHp + pvpStats[attackerSide].lifesteal);
+      } else {
+        bossHp = Math.min(bossMaxHp, bossHp + pvpStats[attackerSide].lifesteal);
+      }
+    }
+
+    updateHpBoard();
+    appendBattleLog(`${getPvpDisplayName(attackerSide)} 掷出 ${roll}，对 ${getPvpDisplayName(defenderSide)} 造成 ${damage} 点伤害。`);
+
+    const defenderHp = defenderSide === 'p1' ? playerHp : bossHp;
+    if (defenderHp === 0) {
+      pvpRoundWins[attackerSide] += 1;
+      updatePvpScoreBoard();
+      roundCount += 1;
+      roundCountEl.textContent = roundCount;
+      appendBattleLog(`第 ${roundCount} 小局结束，${getPvpDisplayName(attackerSide)} 获胜。`);
+
+      if (pvpRoundWins[attackerSide] >= PVP_WIN_TARGET) {
+        gameOver = true;
+        resultEl.textContent = `${getPvpDisplayName(attackerSide)} 连续赢下两局，获得本场 PVP 胜利！`;
+        appendBattleLog(`本场 PVP 结束：${getPvpDisplayName(attackerSide)} 率先获得 ${PVP_WIN_TARGET} 局胜利。`);
+        updateActionButtons();
+        return;
+      }
+
+      grantRandomPvpBoon(defenderSide);
+      activeTurn = defenderSide === 'p1' ? 'player' : 'boss';
+      resultEl.textContent = `${getPvpDisplayName(attackerSide)} 拿下小局！${getPvpDisplayName(defenderSide)} 获得随机增益，下一局由其先手。`;
+      updateActionButtons();
+      return;
+    }
+
+    activeTurn = defenderSide === 'p1' ? 'player' : 'boss';
+    resultEl.textContent = `${getPvpDisplayName(attackerSide)} 行动结束，轮到 ${getPvpDisplayName(defenderSide)}。`;
+    updateActionButtons();
+  } finally {
+    actionInProgress = false;
+    updateActionButtons();
+  }
+}
+
 const BERSERKER_SET = ['berserkerMark', 'slayerInstinct', 'warCry'];
 
 function hasBerserkerSetBonus() {
@@ -501,10 +641,11 @@ function renderSkillSubmenu() {
 }
 
 function updateActionButtons() {
-  const canAct = !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0 && !pendingForgetSkill && !actionInProgress;
+  const isPvp = currentMode === 'pvp';
+  const canAct = !gameOver && pendingBoonChoices.length === 0 && !pendingForgetSkill && !actionInProgress && (isPvp || activeTurn === 'player');
   attackButtonEl.disabled = !canAct;
-  defendButtonEl.disabled = !canAct;
-  skillButtonEl.disabled = !canAct;
+  defendButtonEl.disabled = !canAct || isPvp;
+  skillButtonEl.disabled = !canAct || isPvp;
   if (!canAct) {
     closeSkillSubmenu();
   }
@@ -711,12 +852,14 @@ function showModeLockedHint(modeName) {
   modeHintEl.textContent = `【${modeName}】暂未开发完成`;
 }
 
-function enterGame() {
+function enterGame(mode = 'pve') {
+  currentMode = mode;
   modeHintEl.textContent = '';
   homeScreenEl.classList.add('hidden');
   gameContainerEl.classList.remove('hidden');
   gameContainerEl.setAttribute('aria-hidden', 'false');
   helpButtonEl.classList.remove('hidden');
+  pvpScoreEl.classList.toggle('hidden', currentMode !== 'pvp');
   resetGame();
 }
 
@@ -746,14 +889,30 @@ function resetGame() {
   bossLevel = 1;
   bossExtraAbilities = [];
   buildTraitSet = new Set();
+  pvpRoundWins = { p1: 0, p2: 0 };
+  pvpStats = createPvpStats();
 
-  refreshPlayerIdentity();
-  refreshBossIdentity();
+  if (currentMode === 'pvp') {
+    playerNameEl.textContent = '玩家1';
+    bossNameEl.textContent = '玩家2';
+    playerArtEl.alt = '玩家1';
+    bossArtEl.alt = '玩家2';
+  } else {
+    refreshPlayerIdentity();
+    refreshBossIdentity();
+  }
 
   roundCountEl.textContent = roundCount;
   updateHpBoard();
   updateBossPowerBoard();
-  resultEl.textContent = '点击“普通攻击/技能/防御”开始战斗！';
+  if (currentMode === 'pvp') {
+    activeTurn = 'player';
+    applyPvpRoundHpReset();
+    updatePvpScoreBoard();
+    resultEl.textContent = `PVP 已开始（房间 ${pvpRoomId || '-'}），${getPvpDisplayName(getPvpSideFromActiveTurn())} 先手。`;
+  } else {
+    resultEl.textContent = '点击“普通攻击/技能/防御”开始战斗！';
+  }
 
   playerCardEl.classList.remove('impact', 'show-damage');
   bossCardEl.classList.remove('impact', 'show-damage');
@@ -763,7 +922,11 @@ function resetGame() {
   bossCardEl.dataset.damage = '';
 
   battleLogs = [];
-  appendBattleLog(`战斗重置，新的挑战开始。玩家：${currentPlayerCharacter.name}，Boss：${currentBossCharacter.name}。`);
+  if (currentMode === 'pvp') {
+    appendBattleLog(`战斗重置，新的 PVP 对局开始。${playerNameEl.textContent} VS ${bossNameEl.textContent}。`);
+  } else {
+    appendBattleLog(`战斗重置，新的挑战开始。玩家：${currentPlayerCharacter.name}，Boss：${currentBossCharacter.name}。`);
+  }
 
   renderDiceFace(playerDiceEl, 1, '玩家');
   renderDiceFace(bossDiceEl, 1, 'Boss ');
@@ -815,6 +978,10 @@ function animateDiceRoll(diceEl, ownerLabel, maxRoll, owner) {
 }
 
 async function executePlayerAction(actionType, skillKey = null) {
+  if (currentMode === 'pvp') {
+    await executePvpAction();
+    return;
+  }
   if (gameOver || activeTurn !== 'player' || pendingBoonChoices.length > 0 || pendingForgetSkill || actionInProgress) return;
 
   actionInProgress = true;
@@ -1098,9 +1265,16 @@ async function executePlayerAction(actionType, skillKey = null) {
 setupDice(playerDiceEl);
 setupDice(bossDiceEl);
 
-singlePveButtonEl.addEventListener('click', enterGame);
+singlePveButtonEl.addEventListener('click', () => enterGame('pve'));
 doublePveButtonEl.addEventListener('click', () => showModeLockedHint('双人 PVE'));
-pvpButtonEl.addEventListener('click', () => showModeLockedHint('PVP'));
+pvpButtonEl.addEventListener('click', () => {
+  pvpRoomId = Math.random().toString(36).slice(2, 8).toUpperCase();
+  pvpLocalSide = 'p1';
+  pvpLobbyEl.classList.remove('hidden');
+  updatePvpInviteUi();
+  modeHintEl.textContent = '已创建 PVP 房间。复制邀请链接给对手后即可开战。';
+  enterGame('pvp');
+});
 
 attackButtonEl.addEventListener('click', () => executePlayerAction('attack'));
 defendButtonEl.addEventListener('click', () => executePlayerAction('defend'));
@@ -1131,6 +1305,27 @@ helpButtonEl.addEventListener('click', () => rulesDialogEl.showModal());
 closeRulesButtonEl.addEventListener('click', () => rulesDialogEl.close());
 logButtonEl.addEventListener('click', () => battleLogDialogEl.showModal());
 closeBattleLogButtonEl.addEventListener('click', () => battleLogDialogEl.close());
+
+
+copyInviteButtonEl.addEventListener('click', async () => {
+  if (!pvpInviteLinkEl.value) return;
+  try {
+    await navigator.clipboard.writeText(pvpInviteLinkEl.value);
+    modeHintEl.textContent = '邀请链接已复制。';
+  } catch (error) {
+    modeHintEl.textContent = '复制失败，请手动复制邀请链接。';
+  }
+});
+
+const initialParams = new URLSearchParams(window.location.search);
+if (initialParams.get('mode') === 'pvp') {
+  pvpRoomId = initialParams.get('room') || Math.random().toString(36).slice(2, 8).toUpperCase();
+  pvpLocalSide = initialParams.get('side') === 'p2' ? 'p2' : 'p1';
+  pvpLobbyEl.classList.remove('hidden');
+  updatePvpInviteUi();
+  modeHintEl.textContent = pvpLocalSide === 'p2' ? '你通过邀请链接加入了 PVP 房间（本地演示模式）。' : '你创建了 PVP 房间。';
+  enterGame('pvp');
+}
 
 rulesDialogEl.addEventListener('click', (event) => {
   const bounds = rulesDialogEl.getBoundingClientRect();

@@ -21,7 +21,13 @@
       <div class="mode-buttons" role="group" aria-label="游戏模式选择">
         <button id="singlePveButton" class="start-button" type="button">单人 PVE</button>
         <button id="doublePveButton" class="start-button mode-locked" type="button">双人 PVE</button>
-        <button id="pvpButton" class="start-button mode-locked" type="button">PVP</button>
+        <button id="pvpButton" class="start-button" type="button">PVP</button>
+      </div>
+      <div id="pvpLobby" class="pvp-lobby hidden">
+        <p>房间号：<span id="pvpRoomId">-</span></p>
+        <p>邀请链接：</p>
+        <input id="pvpInviteLink" class="pvp-link-input" type="text" readonly />
+        <button id="copyInviteButton" class="secondary-button" type="button">复制邀请链接</button>
       </div>
       <p id="modeHint" class="mode-hint" aria-live="polite"></p>
     </div>
@@ -84,6 +90,7 @@
         <button id="logButton" class="secondary-button" type="button" aria-haspopup="dialog" aria-controls="battleLogDialog">战斗日志</button>
       </div>
       <p class="stats">回合数：<span id="roundCount">0</span></p>
+      <p id="pvpScore" class="stats hidden">PVP 战绩：玩家1 <span id="pvpP1Wins">0</span> : <span id="pvpP2Wins">0</span> 玩家2（先赢 2 局获胜）</p>
     </section>
   </main>
 
