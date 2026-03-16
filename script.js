@@ -4,6 +4,10 @@ const singlePveButtonEl = document.getElementById('singlePveButton');
 const doublePveButtonEl = document.getElementById('doublePveButton');
 const pvpButtonEl = document.getElementById('pvpButton');
 const modeHintEl = document.getElementById('modeHint');
+const pvpLobbyEl = document.getElementById('pvpLobby');
+const pvpRoomIdEl = document.getElementById('pvpRoomId');
+const pvpInviteLinkEl = document.getElementById('pvpInviteLink');
+const copyInviteButtonEl = document.getElementById('copyInviteButton');
 const resultEl = document.getElementById('result');
 const attackButtonEl = document.getElementById('attackButton');
 const defendButtonEl = document.getElementById('defendButton');
@@ -11,6 +15,9 @@ const skillButtonEl = document.getElementById('skillButton');
 const skillSubmenuEl = document.getElementById('skillSubmenu');
 const restartButtonEl = document.getElementById('restartButton');
 const roundCountEl = document.getElementById('roundCount');
+const pvpScoreEl = document.getElementById('pvpScore');
+const pvpP1WinsEl = document.getElementById('pvpP1Wins');
+const pvpP2WinsEl = document.getElementById('pvpP2Wins');
 const playerHpEl = document.getElementById('playerHp');
 const bossHpEl = document.getElementById('bossHp');
 const bossMaxHpEl = document.getElementById('bossMaxHp');
@@ -375,6 +382,120 @@ let currentPlayerCharacter = null;
 let currentBossCharacter = null;
 let buildTraitSet = new Set();
 
+let currentMode = 'pve';
+let pvpRoomId = '';
+let pvpLocalSide = 'p1';
+let pvpPlayerToken = '';
+let pvpPollTimer = null;
+let pvpCanAct = false;
+
+const PVP_SIDE_LABEL = { p1: '玩家1', p2: '玩家2' };
+
+function getPvpDisplayName(side) {
+  return PVP_SIDE_LABEL[side];
+}
+
+async function pvpApi(path, payload = null, method = 'GET') {
+  const options = { method, headers: { 'Content-Type': 'application/json' } };
+  if (payload) options.body = JSON.stringify(payload);
+  const resp = await fetch(`/api${path}`, options);
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text || `PVP 接口错误：${resp.status}`);
+  }
+  return resp.json();
+}
+
+function updatePvpInviteUi() {
+  const joinUrl = new URL(window.location.href);
+  joinUrl.searchParams.set('mode', 'pvp');
+  joinUrl.searchParams.set('room', pvpRoomId);
+  pvpRoomIdEl.textContent = pvpRoomId;
+  pvpInviteLinkEl.value = joinUrl.toString();
+}
+
+function syncPvpState(state) {
+  playerMaxHp = state.maxHp.p1;
+  bossMaxHp = state.maxHp.p2;
+  playerHp = state.hp.p1;
+  bossHp = state.hp.p2;
+  updateHpBoard();
+
+  pvpP1WinsEl.textContent = state.wins.p1;
+  pvpP2WinsEl.textContent = state.wins.p2;
+
+  roundCount = state.roundCount;
+  roundCountEl.textContent = roundCount;
+
+  activeTurn = state.activeSide === 'p1' ? 'player' : 'boss';
+  gameOver = state.gameOver;
+  pvpCanAct = state.ready && !state.gameOver && state.activeSide === pvpLocalSide;
+
+  if (!state.ready) {
+    resultEl.textContent = '房间已创建，等待对手通过邀请链接加入...';
+  } else if (state.gameOver) {
+    resultEl.textContent = state.message;
+  } else {
+    resultEl.textContent = state.message || `轮到 ${getPvpDisplayName(state.activeSide)} 行动`;
+  }
+
+  if (Array.isArray(state.logs)) {
+    battleLogs = state.logs.map((entry) => ({ time: entry.time, message: entry.message }));
+    renderBattleLogs();
+  }
+
+  updateActionButtons();
+}
+
+function stopPvpPolling() {
+  if (pvpPollTimer) {
+    clearInterval(pvpPollTimer);
+    pvpPollTimer = null;
+  }
+}
+
+function startPvpPolling() {
+  stopPvpPolling();
+  pvpPollTimer = setInterval(async () => {
+    if (!pvpRoomId) return;
+    try {
+      const state = await pvpApi(`/state?room=${encodeURIComponent(pvpRoomId)}`);
+      syncPvpState(state);
+    } catch (error) {
+      modeHintEl.textContent = `PVP 同步失败：${error.message}`;
+    }
+  }, 1200);
+}
+
+
+async function requestPvpReset() {
+  if (currentMode !== 'pvp' || !pvpRoomId || !pvpPlayerToken) {
+    resetGame();
+    return;
+  }
+  try {
+    const state = await pvpApi('/reset', { roomId: pvpRoomId, token: pvpPlayerToken }, 'POST');
+    syncPvpState(state);
+  } catch (error) {
+    modeHintEl.textContent = `重置失败：${error.message}`;
+  }
+}
+
+async function executePvpAction() {
+  if (gameOver || actionInProgress || !pvpCanAct) return;
+  actionInProgress = true;
+  updateActionButtons();
+  try {
+    const state = await pvpApi('/action', { roomId: pvpRoomId, token: pvpPlayerToken, action: 'attack' }, 'POST');
+    syncPvpState(state);
+  } catch (error) {
+    modeHintEl.textContent = `操作失败：${error.message}`;
+  } finally {
+    actionInProgress = false;
+    updateActionButtons();
+  }
+}
+
 const BERSERKER_SET = ['berserkerMark', 'slayerInstinct', 'warCry'];
 
 function hasBerserkerSetBonus() {
@@ -501,10 +622,11 @@ function renderSkillSubmenu() {
 }
 
 function updateActionButtons() {
-  const canAct = !gameOver && activeTurn === 'player' && pendingBoonChoices.length === 0 && !pendingForgetSkill && !actionInProgress;
+  const isPvp = currentMode === 'pvp';
+  const canAct = !gameOver && pendingBoonChoices.length === 0 && !pendingForgetSkill && !actionInProgress && ((isPvp && pvpCanAct) || (!isPvp && activeTurn === 'player'));
   attackButtonEl.disabled = !canAct;
-  defendButtonEl.disabled = !canAct;
-  skillButtonEl.disabled = !canAct;
+  defendButtonEl.disabled = !canAct || isPvp;
+  skillButtonEl.disabled = !canAct || isPvp;
   if (!canAct) {
     closeSkillSubmenu();
   }
@@ -711,12 +833,15 @@ function showModeLockedHint(modeName) {
   modeHintEl.textContent = `【${modeName}】暂未开发完成`;
 }
 
-function enterGame() {
+function enterGame(mode = 'pve') {
+  currentMode = mode;
   modeHintEl.textContent = '';
   homeScreenEl.classList.add('hidden');
   gameContainerEl.classList.remove('hidden');
   gameContainerEl.setAttribute('aria-hidden', 'false');
   helpButtonEl.classList.remove('hidden');
+  pvpScoreEl.classList.toggle('hidden', currentMode !== 'pvp');
+  if (currentMode !== 'pvp') stopPvpPolling();
   resetGame();
 }
 
@@ -746,14 +871,26 @@ function resetGame() {
   bossLevel = 1;
   bossExtraAbilities = [];
   buildTraitSet = new Set();
-
-  refreshPlayerIdentity();
-  refreshBossIdentity();
+  if (currentMode === 'pvp') {
+    playerNameEl.textContent = '玩家1';
+    bossNameEl.textContent = '玩家2';
+    playerArtEl.alt = '玩家1';
+    bossArtEl.alt = '玩家2';
+  } else {
+    refreshPlayerIdentity();
+    refreshBossIdentity();
+  }
 
   roundCountEl.textContent = roundCount;
   updateHpBoard();
   updateBossPowerBoard();
-  resultEl.textContent = '点击“普通攻击/技能/防御”开始战斗！';
+  if (currentMode === 'pvp') {
+    activeTurn = 'player';
+    pvpCanAct = false;
+    resultEl.textContent = `PVP 房间 ${pvpRoomId || '-'} 连接中...`;
+  } else {
+    resultEl.textContent = '点击“普通攻击/技能/防御”开始战斗！';
+  }
 
   playerCardEl.classList.remove('impact', 'show-damage');
   bossCardEl.classList.remove('impact', 'show-damage');
@@ -763,7 +900,11 @@ function resetGame() {
   bossCardEl.dataset.damage = '';
 
   battleLogs = [];
-  appendBattleLog(`战斗重置，新的挑战开始。玩家：${currentPlayerCharacter.name}，Boss：${currentBossCharacter.name}。`);
+  if (currentMode === 'pvp') {
+    appendBattleLog(`战斗重置，新的 PVP 对局开始。${playerNameEl.textContent} VS ${bossNameEl.textContent}。`);
+  } else {
+    appendBattleLog(`战斗重置，新的挑战开始。玩家：${currentPlayerCharacter.name}，Boss：${currentBossCharacter.name}。`);
+  }
 
   renderDiceFace(playerDiceEl, 1, '玩家');
   renderDiceFace(bossDiceEl, 1, 'Boss ');
@@ -815,6 +956,10 @@ function animateDiceRoll(diceEl, ownerLabel, maxRoll, owner) {
 }
 
 async function executePlayerAction(actionType, skillKey = null) {
+  if (currentMode === 'pvp') {
+    await executePvpAction();
+    return;
+  }
   if (gameOver || activeTurn !== 'player' || pendingBoonChoices.length > 0 || pendingForgetSkill || actionInProgress) return;
 
   actionInProgress = true;
@@ -1098,9 +1243,24 @@ async function executePlayerAction(actionType, skillKey = null) {
 setupDice(playerDiceEl);
 setupDice(bossDiceEl);
 
-singlePveButtonEl.addEventListener('click', enterGame);
+singlePveButtonEl.addEventListener('click', () => enterGame('pve'));
 doublePveButtonEl.addEventListener('click', () => showModeLockedHint('双人 PVE'));
-pvpButtonEl.addEventListener('click', () => showModeLockedHint('PVP'));
+pvpButtonEl.addEventListener('click', async () => {
+  try {
+    const created = await pvpApi('/create-room', {}, 'POST');
+    pvpRoomId = created.roomId;
+    pvpPlayerToken = created.token;
+    pvpLocalSide = 'p1';
+    pvpLobbyEl.classList.remove('hidden');
+    updatePvpInviteUi();
+    modeHintEl.textContent = 'PVP 房间创建成功，复制邀请链接给对手。';
+    enterGame('pvp');
+    syncPvpState(created.state);
+    startPvpPolling();
+  } catch (error) {
+    modeHintEl.textContent = `创建房间失败：${error.message}`;
+  }
+});
 
 attackButtonEl.addEventListener('click', () => executePlayerAction('attack'));
 defendButtonEl.addEventListener('click', () => executePlayerAction('defend'));
@@ -1126,11 +1286,42 @@ document.addEventListener('click', (event) => {
   }
 });
 
-restartButtonEl.addEventListener('click', resetGame);
+restartButtonEl.addEventListener('click', requestPvpReset);
 helpButtonEl.addEventListener('click', () => rulesDialogEl.showModal());
 closeRulesButtonEl.addEventListener('click', () => rulesDialogEl.close());
 logButtonEl.addEventListener('click', () => battleLogDialogEl.showModal());
 closeBattleLogButtonEl.addEventListener('click', () => battleLogDialogEl.close());
+
+
+copyInviteButtonEl.addEventListener('click', async () => {
+  if (!pvpInviteLinkEl.value) return;
+  try {
+    await navigator.clipboard.writeText(pvpInviteLinkEl.value);
+    modeHintEl.textContent = '邀请链接已复制。';
+  } catch (error) {
+    modeHintEl.textContent = '复制失败，请手动复制邀请链接。';
+  }
+});
+
+const initialParams = new URLSearchParams(window.location.search);
+if (initialParams.get('mode') === 'pvp' && initialParams.get('room')) {
+  (async () => {
+    try {
+      pvpRoomId = initialParams.get('room');
+      const joined = await pvpApi('/join-room', { roomId: pvpRoomId }, 'POST');
+      pvpPlayerToken = joined.token;
+      pvpLocalSide = joined.side;
+      pvpLobbyEl.classList.remove('hidden');
+      updatePvpInviteUi();
+      modeHintEl.textContent = `已加入房间 ${pvpRoomId}，你是${getPvpDisplayName(pvpLocalSide)}。`;
+      enterGame('pvp');
+      syncPvpState(joined.state);
+      startPvpPolling();
+    } catch (error) {
+      modeHintEl.textContent = `加入 PVP 房间失败：${error.message}`;
+    }
+  })();
+}
 
 rulesDialogEl.addEventListener('click', (event) => {
   const bounds = rulesDialogEl.getBoundingClientRect();
