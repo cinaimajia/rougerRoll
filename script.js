@@ -1300,7 +1300,7 @@ document.addEventListener('click', (event) => {
   }
 });
 
-restartButtonEl.addEventListener('click', resetGame);
+restartButtonEl.addEventListener('click', requestPvpReset);
 helpButtonEl.addEventListener('click', () => rulesDialogEl.showModal());
 closeRulesButtonEl.addEventListener('click', () => rulesDialogEl.close());
 logButtonEl.addEventListener('click', () => battleLogDialogEl.showModal());
